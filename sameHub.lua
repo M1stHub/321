@@ -4,14 +4,19 @@ local LocalPlayer = Players.LocalPlayer
 
 local cfg = getgenv().SameHubConfig or {}
 local MAIN_USERID = cfg.mainUserId
+local HUB_WALK_URL = cfg.hubWalkUrl
 
 if not MAIN_USERID then
     warn("[SameHub] SameHubConfig.mainUserId not set")
     return
 end
+if not HUB_WALK_URL then
+    warn("[SameHub] SameHubConfig.hubWalkUrl not set")
+    return
+end
 
 local function executeMain()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/M1stHub/321/refs/heads/main/pathwalk.lua"))()
+    loadstring(game:HttpGet(HUB_WALK_URL))()
 end
 
 local function waitForMainInLobby()
