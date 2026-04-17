@@ -1,5 +1,4 @@
 local cfg = getgenv().EventCheckConfig or {}
-local LEVI_URL = cfg.leviUrl
 
 getgenv().leviInProgress = false
 
@@ -89,14 +88,12 @@ local function waitForLeviDone()
 end
 
 local function executeLevi()
-    if not LEVI_URL then
-        warn("[EventCheck] EventCheckConfig.leviUrl not set")
+    if not cfg.executeLevi then
+        warn("[EventCheck] EventCheckConfig.executeLevi not set")
         return
     end
     print("[MistFlag] Executing levi script")
-    pcall(function()
-        loadstring(game:HttpGet(LEVI_URL))()
-    end)
+    pcall(cfg.executeLevi)
 end
 
 local function switchToLevi()
@@ -120,6 +117,10 @@ local function update()
     if flag == "Dungeons" then
         if energy >= DUNGEON_MIN_ENERGY then
             setFlag("Dungeons")
+            if game.PlaceId ~= 73902483975735 then
+                print("[MistFlag] Flag is Dungeons but not in hub — teleporting")
+                teleportToHub()
+            end
         else
             print("[MistFlag] Energy too low (" .. energy .. ") — switching to Leviathan")
             switchToLevi()
