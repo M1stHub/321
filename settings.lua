@@ -1,5 +1,5 @@
-repeat wait() until game:IsLoaded()
-wait(15)
+repeat task.wait() until game:IsLoaded()
+task.wait(15)
 local function ensureOff(secondBtn)
     if not secondBtn then return end
     local c = secondBtn.BackgroundColor3
