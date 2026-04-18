@@ -1,6 +1,6 @@
 repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer and game.Players.LocalPlayer.PlayerGui
 
-local cfg         = getgenv().DungeonConfig or {}
+local cfg = getgenv().DungeonConfig or {}
 local LocalPlayer = game:GetService("Players").LocalPlayer
 
 local function mainScript()
