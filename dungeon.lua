@@ -24,8 +24,8 @@ local function autoSkipDungeon()
     end
 end
 
+task.spawn(mainScript)
+task.wait(10)
 task.spawn(autoSkipDungeon)
-task.wait(3)
-task.spawn(mainScript())
 task.wait(3)
 task.spawn(autoPickCard)
