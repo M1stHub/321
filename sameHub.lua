@@ -21,7 +21,8 @@ if ALLOWED_ACCOUNTS and not table.find(ALLOWED_ACCOUNTS, LocalPlayer.Name) then
 end
 
 local function executeMain()
-    loadstring(game:HttpGet(HUB_WALK_URL))()
+    local ok, err = pcall(function() loadstring(game:HttpGet(HUB_WALK_URL))() end)
+    if not ok then warn("[SameHub] hubWalk error: " .. tostring(err)) end
 end
 
 local function waitForMainInLobby()

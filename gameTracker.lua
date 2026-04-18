@@ -175,7 +175,8 @@ end
 
 game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
 game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)
-game:GetService("Players").LocalPlayer.PlayerGui:WaitForChild("Notifications"):Destroy()
+local notif = game:GetService("Players").LocalPlayer.PlayerGui:WaitForChild("Notifications", 10)
+if notif then notif:Destroy() end
 
 updateTracker()
 while true do

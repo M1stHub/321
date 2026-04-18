@@ -43,7 +43,17 @@ task.spawn(function()
     end
 end)
 
-local ReplicatedPlayerData = require(game:GetService("ReplicatedStorage").DungeonClient.ReplicatedPlayerData)
+local ReplicatedPlayerData
+do
+    local ok, result = pcall(function()
+        return require(game:GetService("ReplicatedStorage").DungeonClient.ReplicatedPlayerData)
+    end)
+    if not ok then
+        warn("[EventCheck] Failed to load ReplicatedPlayerData: " .. tostring(result))
+        return
+    end
+    ReplicatedPlayerData = result
+end
 local Players = game:GetService("Players")
 
 local playerName = Players.LocalPlayer.Name
@@ -147,8 +157,12 @@ local function update()
     end
 end
 
-update()
+local ok, err = pcall(update)
+if not ok then warn("[EventCheck] update() error: " .. tostring(err)) end
 
 if ReplicatedPlayerData.OnUpdated and ReplicatedPlayerData.OnUpdated.Event then
-    ReplicatedPlayerData.OnUpdated.Event:Connect(update)
+    ReplicatedPlayerData.OnUpdated.Event:Connect(function()
+        local ok2, err2 = pcall(update)
+        if not ok2 then warn("[EventCheck] update() error: " .. tostring(err2)) end
+    end)
 end

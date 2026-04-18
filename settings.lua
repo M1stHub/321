@@ -26,7 +26,7 @@ local function ensureFastModeOn(firstBtn)
     end
 end
 
-local pg = game:GetService("Players").LocalPlayer.PlayerGui.Main.SettingsMenu.Content.ScrollingFrame
+local pg = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("Main"):WaitForChild("SettingsMenu"):WaitForChild("Content"):WaitForChild("ScrollingFrame")
 
 ensureOff(pg.CameraShake and pg.CameraShake.SecondButton)
 ensureOff(pg.BackgroundMusic and pg.BackgroundMusic.SecondButton)
