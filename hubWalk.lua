@@ -440,6 +440,7 @@ local function runPipeline()
     guiWaypoint.Text = #wps .. " / " .. #wps
 
     local total = #ALLOWED_ACCOUNTS
+    local padBlacklist = {}
     setCoordStatus("Waiting nearby", Color3.fromRGB(200, 160, 50))
     log("Waiting for all " .. total .. " accs nearby...")
 
@@ -478,9 +479,15 @@ local function runPipeline()
         local allOursConfirmed = false
 
         while running do
-            local padCount  = PAD_OBJECT:GetAttribute("NumPlayersOnPad") or 0
-            local oursOnly  = onlyOursOnPad()
-            local hasRandom = padCount > 0 and not oursOnly
+            local padCount = PAD_OBJECT:GetAttribute("NumPlayersOnPad") or 0
+            local oursOnly = onlyOursOnPad()
+            local realRandom = false
+            for name in pairs(allPlayersInside[PAD_NAME] or {}) do
+                if not table.find(ALLOWED_ACCOUNTS, name) and not padBlacklist[name] then
+                    realRandom = true; break
+                end
+            end
+            local hasRandom = padCount > 0 and not oursOnly and realRandom
             guiOnPad.Text        = padCount .. "/" .. total
             guiRandom.Text       = hasRandom and "YES - bail!" or "none"
             guiRandom.TextColor3 = hasRandom and Color3.fromRGB(255, 80, 80) or Color3.fromRGB(80, 220, 120)
@@ -517,6 +524,15 @@ local function runPipeline()
         if bailed then
             log("Waiting for pad to clear...")
             task.wait(3)
+            local c = PAD_OBJECT:GetAttribute("NumPlayersOnPad") or 0
+            if c == 0 then
+                for name in pairs(allPlayersInside[PAD_NAME] or {}) do
+                    if not table.find(ALLOWED_ACCOUNTS, name) and not padBlacklist[name] then
+                        padBlacklist[name] = true
+                        log("Blacklisted " .. name .. " (pad still 0, no energy)")
+                    end
+                end
+            end
         end
     end
 
