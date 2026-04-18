@@ -8,69 +8,10 @@ local ALLOWED_ACCOUNTS = cfg.allowedAccounts or {
     "3",
     "4",
 }
+local PAD_NAME    = cfg.padName    or "DUNGEON_TELEPORTER3"
+local PAD_OBJECT  = workspace.Map["Simulation Hub"].Pads[PAD_NAME]
 local NEAR_RADIUS = cfg.nearRadius or 50
-local REACH_DIST  = cfg.reachDist  or 5
-local BAIL_SWITCH_LIMIT = cfg.bailSwitchLimit or 3
-
-local PAD_CONFIGS = {
-    {
-        name = "DUNGEON_TELEPORTER3",
-        object = workspace.Map["Simulation Hub"].Pads.DUNGEON_TELEPORTER3,
-        walkOnPositions = {
-            CFrame.new(-373.536316, 235.687775, -455.370514, 0.974182844, 1.05044293e-07, -0.22576046, -9.23628249e-08, 1, 6.67345219e-08, 0.22576046, -4.4159755e-08, 0.974182844),
-            CFrame.new(-383.009399, 235.68779, -449.414764, -0.205830127, -1.12180658e-07, 0.978587747, -2.78042318e-08, 1, 1.08787091e-07, -0.978587747, -4.81721951e-09, -0.205830127),
-            CFrame.new(-375.76712, 235.68779, -445.878906, -0.960089564, -2.97983629e-08, -0.279692799, -2.14198881e-09, 1, -9.91869058e-08, 0.279692799, -9.46292147e-08, -0.960089564),
-            CFrame.new(-380.974976, 235.68779, -442.194275, -0.893374443, 6.62406734e-08, 0.449312955, 3.52165976e-08, 1, -7.74049909e-08, -0.449312955, -5.33283639e-08, -0.893374443),
-            CFrame.new(-384.293945, 235.68779, -435.973175, -0.774265766, -7.97903283e-07, 0.632860601, 5.30492628e-07, 1, 1.90981314e-06, -0.632860601, 1.81443079e-06, -0.774265766),
-            CFrame.new(-391.718506, 235.68779, -429.641815, -0.666306913, -6.01425398e-08, 0.74567759, -1.84832194e-09, 1, 7.90032928e-08, -0.74567759, 5.12621909e-08, -0.666306913),
-            CFrame.new(-391.567871, 235.68779, -439.324554, 0.81830442, -1.10868768e-06, 0.574785054, 1.15987135e-07, 1, 1.76374613e-06, -0.574785054, -1.37661368e-06, 0.81830442),
-            CFrame.new(-382.163696, 235.687805, -431.758423, -0.215178594, -4.08859114e-06, -0.976574719, 4.18149369e-07, 1, -4.27880013e-06, 0.976574719, -1.32906086e-06, -0.215178594),
-            CFrame.new(-376.100769, 235.687775, -425.211212, -0.694819093, -1.97906174e-05, -0.719184518, -1.29647435e-06, 1, -2.62655849e-05, 0.719184518, -1.73174267e-05, -0.694819093),
-            CFrame.new(-369.816559, 235.687775, -435.111359, 0.809042692, -6.80446846e-08, -0.587749839, 2.56687436e-08, 1, -8.04382623e-08, 0.587749839, 4.99911899e-08, 0.809042692),
-            CFrame.new(-369.775513, 235.687775, -427.462738, -0.70772171, -2.46831278e-05, -0.706491351, -2.06037316e-06, 1, -3.28736605e-05, 0.706491351, -2.18097648e-05, -0.70772171),
-            CFrame.new(-361.183899, 235.687775, -424.382416, -0.368807167, -1.07619535e-07, -0.929505944, -1.26708635e-08, 1, -1.1075393e-07, 0.929505944, -2.90691986e-08, -0.368807167),
-            CFrame.new(-361.023804, 235.687775, -434.110687, 0.859865248, -3.47039588e-08, -0.510521114, -1.17129417e-08, 1, -8.77055015e-08, 0.510521114, 8.13946173e-08, 0.859865248),
-            CFrame.new(-351.341248, 235.687775, -425.077057, -0.30787769, -9.12572716e-07, -0.95142597, -2.51087879e-08, 1, -9.51038032e-07, 0.95142597, -2.68914249e-07, -0.30787769),
-            CFrame.new(-346.240479, 235.6194, -420.217529, -0.624623358, 3.31570732e-07, -0.780926168, 1.66260641e-08, 1, 4.1128817e-07, 0.780926168, 2.43916475e-07, -0.624623358),
-            CFrame.new(-338.535736, 235.687744, -427.795197, 0.696491778, -1.14933449e-07, -0.717564762, 1.35142972e-08, 1, -1.47054109e-07, 0.717564762, 9.27245978e-08, 0.696491778),
-            CFrame.new(-346.798767, 235.687775, -435.253265, 0.973793805, -8.66484271e-08, 0.227432624, 8.78797923e-09, 1, 3.43357755e-07, -0.227432624, -3.32360969e-07, 0.973793805),
-            CFrame.new(-336.715332, 235.687561, -439.561066, 0.866617262, 5.54924895e-07, -0.498973459, -2.08032631e-07, 1, 7.50821926e-07, 0.498973459, -5.46872457e-07, 0.866617262),
-            CFrame.new(-336.608643, 235.687744, -445.879242, 0.981031597, -7.50339041e-07, -0.19384779, 7.10915913e-08, 1, -3.51098083e-06, 0.19384779, 3.43060219e-06, 0.981031597),
-            CFrame.new(-341.642303, 235.687744, -452.78244, 0.409446508, 0.000127352148, 0.912334144, 2.58194268e-05, 1, -0.000151176879, -0.912334144, 8.54547834e-05, 0.409446478),
-            CFrame.new(-343.439667, 235.687775, -448.234009, -0.451188445, 7.15424612e-05, 0.892428696, 7.41262284e-06, 1, -7.64184006e-05, -0.892428696, -2.78638636e-05, -0.451188445),
-        },
-    },
-    {
-        name = "DUNGEON_TELEPORTER2",
-        object = workspace.Map["Simulation Hub"].Pads.DUNGEON_TELEPORTER2,
-        transitPos = CFrame.new(-299.870087, 235.687744, -375.938843, -0.813491344, 5.11981924e-08, -0.581577003, -4.5274704e-09, 1, 9.43662641e-08, 0.581577003, 7.93992143e-08, -0.813491344),
-        walkOnPositions = {
-            CFrame.new(-248.91507, 235.687744, -440.81955, 0.933903337, 5.09446814e-08, -0.357525647, -3.43950965e-08, 1, 5.2647934e-08, 0.357525647, -3.68709507e-08, 0.933903337),
-            CFrame.new(-254.512268, 235.687729, -441.686249, 0.835766435, -1.14334273e-06, 0.54908514, -1.18878923e-07, 1, 2.26321504e-06, -0.54908514, -1.95679377e-06, 0.835766435),
-            CFrame.new(-255.266891, 235.687744, -436.881165, -0.380847961, 0.000106389445, 0.924637675, 1.31923789e-05, 1, -0.00010962689, -0.924637675, -2.95530081e-05, -0.380847961),
-            CFrame.new(-255.803787, 235.687729, -433.409058, -0.593941867, -1.05435454e-07, 0.804507971, -6.78571794e-08, 1, 8.09590901e-08, -0.804507971, -6.50665033e-09, -0.593941867),
-            CFrame.new(-251.006348, 235.687729, -432.665955, -0.982822299, 5.59270497e-08, -0.184554517, 3.8444913e-08, 1, 9.83044615e-08, 0.184554517, 8.95206327e-08, -0.982822299),
-            CFrame.new(-259.075928, 235.687729, -425.92981, -0.768554568, 3.90257264e-06, 0.639784217, -1.92217584e-07, 1, -6.33073205e-06, -0.639784217, -4.98849113e-06, -0.768554568),
-            CFrame.new(-261.994141, 235.490417, -418.726227, -0.99447298, 1.85473473e-05, 0.104992628, 1.0177625e-05, 1, -8.02530121e-05, -0.104992628, -7.87408717e-05, -0.99447298),
-            CFrame.new(-253.772583, 235.670502, -426.785767, 0.729327381, -2.81402445e-05, -0.684164882, 2.81713506e-06, 1, -3.81276986e-05, 0.684164882, 2.58801902e-05, 0.729327381),
-            CFrame.new(-253.880203, 235.687714, -426.038147, -0.403978705, -0.000177882321, -0.914768398, -3.05313661e-05, 1, -0.0001809729, 0.914768398, -4.51800697e-05, -0.403978705),
-            CFrame.new(-254.797958, 235.444702, -418.802368, -0.915819883, -6.26693554e-06, -0.401589304, -5.33165974e-07, 1, -1.43894558e-05, 0.401589304, -1.29640357e-05, -0.915819883),
-            CFrame.new(-245.311188, 235.028137, -414.82486, -0.429487735, -8.03898092e-06, -0.903072715, 3.25165132e-07, 1, -9.05645265e-06, 0.903072715, -4.18328316e-06, -0.429487735),
-            CFrame.new(-238.487976, 235.62619, -420.544434, 0.335911512, -8.81283777e-05, -0.941893578, -8.57973737e-06, 1, -9.66249427e-05, 0.941893578, 4.05386309e-05, 0.335911483),
-            CFrame.new(-239.27298, 235.021912, -410.32254, -0.891388834, 4.287933e-07, -0.453239352, 3.16858092e-07, 1, 3.2289654e-07, 0.453239352, 1.44213786e-07, -0.891388834),
-            CFrame.new(-226.639359, 235.028885, -411.732666, 0.312105417, -7.82706775e-05, -0.950047493, 8.11711016e-06, 1, -7.97194734e-05, 0.950047493, 1.71692391e-05, 0.312105417),
-            CFrame.new(-227.486786, 235.028915, -403.358856, -0.941551685, -1.01873675e-05, -0.336868554, -1.50271751e-06, 1, -2.60412598e-05, 0.336868554, -2.40129739e-05, -0.941551685),
-            CFrame.new(-220.032196, 235.028915, -402.783539, 0.0501562059, -0.000112179368, -0.998741388, 1.35745777e-05, 1, -0.000111639027, 0.998741388, -7.95810223e-06, 0.0501562059),
-            CFrame.new(-214.330811, 235.028915, -411.375885, 0.601480603, -8.93175667e-08, -0.798887432, 1.58376101e-09, 1, -1.10610038e-07, 0.798887432, 6.5264544e-08, 0.601480603),
-            CFrame.new(-213.597504, 235.028915, -419.066162, 0.953725696, -4.02727437e-06, -0.300678104, 5.02231956e-07, 1, -1.18009357e-05, 0.300678104, 1.11038453e-05, 0.953725696),
-            CFrame.new(-214.139236, 235.687698, -427.490753, 0.561667264, 4.61876043e-05, 0.827363193, 4.56668113e-06, 1, -5.89252195e-05, -0.827363193, 3.68746732e-05, 0.561667264),
-            CFrame.new(-214.654755, 235.687729, -433.709045, 0.954535544, -1.79732979e-05, -0.298097134, -1.61145708e-05, 1, -0.000111893823, 0.298097134, 0.000111610345, 0.954535544),
-            CFrame.new(-207.915009, 235.687729, -426.306641, -0.605176628, -4.08374144e-05, -0.796091199, -4.15634395e-06, 1, -4.81378156e-05, 0.796091199, -2.58230539e-05, -0.605176628),
-            CFrame.new(-217.196594, 235.649307, -422.850311, 0.0830424726, 2.14654574e-05, 0.99654603, -1.21406072e-06, 1, -2.14386873e-05, -0.99654603, 5.70454233e-07, 0.0830424726),
-            CFrame.new(-224.864838, 236.335052, -421.47583, -0.413344592, 3.81857972e-05, 0.910574675, 3.47363448e-06, 1, -4.03591148e-05, -0.910574675, -1.35192176e-05, -0.413344592),
-        },
-    },
-}
+local WALK_ON_POS = cfg.walkOnPos  or Vector3.new(-487, 237, -433)
 local REACH_DIST  = cfg.reachDist  or 5
 local STUCK_CHECK = cfg.stuckCheck or 1
 local STUCK_LIMIT = cfg.stuckLimit or 3
@@ -236,8 +177,8 @@ local function getOnPadCount(padName)
     return count
 end
 
-local function onlyOursOnPad(padName)
-    for name in pairs(allPlayersInside[padName] or {}) do
+local function onlyOursOnPad()
+    for name in pairs(allPlayersInside[PAD_NAME] or {}) do
         if not table.find(ALLOWED_ACCOUNTS, name) then return false end
     end
     return true
@@ -500,34 +441,27 @@ local function runPipeline()
 
     local total = #ALLOWED_ACCOUNTS
     local padBlacklist = {}
-    local padIdx = 1
-    local bailCount = 0
-
-    local function currentPad() return PAD_CONFIGS[padIdx] end
-
     setCoordStatus("Waiting nearby", Color3.fromRGB(200, 160, 50))
     log("Waiting for all " .. total .. " accs nearby...")
 
     while running do
-        local n = getNearbyCount(currentPad().name)
+        local n = getNearbyCount(PAD_NAME)
         guiNearby.Text = n .. "/" .. total
-        guiOnPad.Text  = currentPad().object:GetAttribute("NumPlayersOnPad") or "?"
+        guiOnPad.Text  = PAD_OBJECT:GetAttribute("NumPlayersOnPad") or "?"
         if n >= total then break end
         task.wait(0.5)
     end
 
     if not running then stopPipeline(); return end
-    log("All accounts nearby — using " .. currentPad().name)
+    log("All accounts nearby!")
 
     while running do
-        local pad = currentPad()
-
         setCoordStatus("Waiting pad=0", Color3.fromRGB(200, 160, 50))
         while running do
-            local c = pad.object:GetAttribute("NumPlayersOnPad") or 0
+            local c = PAD_OBJECT:GetAttribute("NumPlayersOnPad") or 0
             guiOnPad.Text = c .. "/" .. total
             if c == 0 then
-                local t = allPlayersInside[pad.name]
+                local t = allPlayersInside[PAD_NAME]
                 if t then for k in pairs(t) do t[k] = nil end end
                 break
             end
@@ -535,14 +469,9 @@ local function runPipeline()
         end
         if not running then break end
 
-        log("Pad empty — walking on " .. pad.name)
+        log("Pad empty — walking on")
         setCoordStatus("Walking on", Color3.fromRGB(100, 180, 255))
-        if pad.transitPos then
-            walkTo(pad.transitPos.Position)
-            if not running then break end
-        end
-        local walkOnCF = pad.walkOnPositions[math.random(#pad.walkOnPositions)]
-        walkTo(walkOnCF.Position)
+        walkTo(WALK_ON_POS)
         if not running then break end
 
         setCoordStatus("On pad", Color3.fromRGB(80, 220, 120))
@@ -550,10 +479,10 @@ local function runPipeline()
         local allOursConfirmed = false
 
         while running do
-            local padCount = pad.object:GetAttribute("NumPlayersOnPad") or 0
-            local oursOnly = onlyOursOnPad(pad.name)
+            local padCount = PAD_OBJECT:GetAttribute("NumPlayersOnPad") or 0
+            local oursOnly = onlyOursOnPad()
             local realRandom = false
-            for name in pairs(allPlayersInside[pad.name] or {}) do
+            for name in pairs(allPlayersInside[PAD_NAME] or {}) do
                 if not table.find(ALLOWED_ACCOUNTS, name) and not padBlacklist[name] then
                     realRandom = true; break
                 end
@@ -577,9 +506,9 @@ local function runPipeline()
                 log("All " .. total .. " accs on pad!")
                 setCoordStatus("All on pad!", Color3.fromRGB(80, 255, 120))
                 guiRandom.Text = "none"; guiRandom.TextColor3 = Color3.fromRGB(80, 220, 120)
-                local remote = workspace.Map["Simulation Hub"].Pads[pad.name]:WaitForChild("DungeonSettingsChanged")
+                local remote = workspace:WaitForChild("Map"):WaitForChild("Simulation Hub"):WaitForChild("Pads"):WaitForChild("DUNGEON_TELEPORTER3"):WaitForChild("DungeonSettingsChanged")
                 task.wait(2)
-                log("Setting difficulty: Easy")
+                log("Setting difficulty: Hard")
                 remote:FireServer("Difficulty", "Easy")
                 task.wait(1)
                 log("Starting dungeon...")
@@ -593,23 +522,16 @@ local function runPipeline()
         end
 
         if bailed then
-            bailCount += 1
-            log("Waiting for pad to clear... (" .. bailCount .. "/" .. BAIL_SWITCH_LIMIT .. ")")
+            log("Waiting for pad to clear...")
             task.wait(3)
-            local c = pad.object:GetAttribute("NumPlayersOnPad") or 0
+            local c = PAD_OBJECT:GetAttribute("NumPlayersOnPad") or 0
             if c == 0 then
-                for name in pairs(allPlayersInside[pad.name] or {}) do
+                for name in pairs(allPlayersInside[PAD_NAME] or {}) do
                     if not table.find(ALLOWED_ACCOUNTS, name) and not padBlacklist[name] then
                         padBlacklist[name] = true
                         log("Blacklisted " .. name .. " (pad still 0, no energy)")
                     end
                 end
-            end
-            if bailCount >= BAIL_SWITCH_LIMIT then
-                padIdx = padIdx % #PAD_CONFIGS + 1
-                bailCount = 0
-                padBlacklist = {}
-                log("Switching to " .. currentPad().name)
             end
         end
     end
