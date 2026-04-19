@@ -1,5 +1,10 @@
 local cfg = getgenv().EventCheckConfig or {}
 
+local function isInDungeon()
+    local leaderstats = game:GetService("Players").LocalPlayer:FindFirstChild("leaderstats")
+    return leaderstats and leaderstats:FindFirstChild("Damage") ~= nil
+end
+
 getgenv().leviInProgress = false
 
 local function waitForGate()
@@ -171,11 +176,14 @@ local function update()
     end
 end
 
-local ok, err = pcall(update)
-if not ok then warn("[EventCheck] update() error: " .. tostring(err)) end
+if not isInDungeon() then
+    local ok, err = pcall(update)
+    if not ok then warn("[EventCheck] update() error: " .. tostring(err)) end
+end
 
 if ReplicatedPlayerData.OnUpdated and ReplicatedPlayerData.OnUpdated.Event then
     ReplicatedPlayerData.OnUpdated.Event:Connect(function()
+        if isInDungeon() then return end
         local ok2, err2 = pcall(update)
         if not ok2 then warn("[EventCheck] update() error: " .. tostring(err2)) end
     end)
