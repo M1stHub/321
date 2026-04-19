@@ -62,8 +62,9 @@ local FLAG_FILE = playerName .. "-MistFlag.txt"
 local DUNGEON_MIN_ENERGY    = 10
 local DUNGEON_START_ENERGY  = 50
 
-local lastFlag        = nil
-local dungeonStarted  = false
+local lastFlag       = nil
+local dungeonStarted = false
+local leviStarted    = false
 
 local function startDungeons()
     if dungeonStarted or not cfg.executeDungeons then return end
@@ -72,6 +73,15 @@ local function startDungeons()
     task.spawn(function()
         local ok, err = pcall(cfg.executeDungeons)
         if not ok then warn("[EventCheck] executeDungeons error: " .. tostring(err)) end
+    end)
+end
+
+local function startLevi()
+    if leviStarted or not cfg.executeLevi then return end
+    leviStarted = true
+    task.spawn(function()
+        local ok, err = pcall(cfg.executeLevi)
+        if not ok then warn("[EventCheck] executeLevi error: " .. tostring(err)) end
     end)
 end
 
@@ -106,19 +116,9 @@ local function waitForLeviDone()
     teleportToHub()
 end
 
-local function executeLevi()
-    if not cfg.executeLevi then
-        warn("[EventCheck] EventCheckConfig.executeLevi not set")
-        return
-    end
-    print("[MistFlag] Executing levi script")
-    pcall(cfg.executeLevi)
-end
-
 local function switchToLevi()
-    if lastFlag == "Leviathan" then return end
     setFlag("Leviathan")
-    executeLevi()
+    startLevi()
 end
 
 local function switchToDungeons(fromLevi)
@@ -155,6 +155,7 @@ local function update()
             switchToDungeons(true)
         else
             setFlag("Leviathan")
+            startLevi()
         end
 
     else
