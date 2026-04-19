@@ -516,11 +516,18 @@ local function runPipeline()
     setPWStatus("Done", Color3.fromRGB(80, 220, 120))
     guiWaypoint.Text = #wps .. " / " .. #wps
 
-    local total       = #ALLOWED_ACCOUNTS
-    local padIdx      = 1
-    local pad         = PAD_CONFIGS[1]
+    local PAD_SYNC_FILE = "DungeonBotPad.txt"
+    local function readPadTarget()
+        if isfile(PAD_SYNC_FILE) then return tonumber(readfile(PAD_SYNC_FILE)) or 1 end
+        return 1
+    end
+    local function writePadTarget(idx) writefile(PAD_SYNC_FILE, tostring(idx)) end
+
+    local total        = #ALLOWED_ACCOUNTS
+    local padIdx       = readPadTarget()
+    local pad          = PAD_CONFIGS[padIdx]
     local padBlacklist = {}
-    local needsTravel = false
+    local needsTravel  = (padIdx ~= 1)
 
     setCoordStatus("Waiting nearby", Color3.fromRGB(200, 160, 50))
     log("Waiting for all " .. total .. " accs nearby...")
@@ -535,6 +542,13 @@ local function runPipeline()
     log("All accounts nearby!")
 
     while running do
+        -- sync to whichever pad another account may have already switched to
+        local targetIdx = readPadTarget()
+        if targetIdx ~= padIdx then
+            padIdx       = targetIdx
+            padBlacklist = {}
+            needsTravel  = true
+        end
         pad = PAD_CONFIGS[padIdx]
 
         if needsTravel then
@@ -563,6 +577,13 @@ local function runPipeline()
         local waitStart = tick()
         local switched = false
         while running do
+            local syncIdx = readPadTarget()
+            if syncIdx ~= padIdx then
+                padIdx = syncIdx; pad = PAD_CONFIGS[padIdx]; padBlacklist = {}
+                needsTravel = true; switched = true
+                log("Pad sync — following to " .. pad.name)
+                break
+            end
             local c = pad.object:GetAttribute("NumPlayersOnPad") or 0
             guiOnPad.Text = c .. "/" .. total
             if c == 0 then
@@ -573,6 +594,7 @@ local function runPipeline()
             if tick() - waitStart >= PAD_WAIT_SECS then
                 for i, alt in ipairs(PAD_CONFIGS) do
                     if i ~= padIdx and (alt.object:GetAttribute("NumPlayersOnPad") or 0) == 0 then
+                        writePadTarget(i)
                         padIdx = i; pad = alt; padBlacklist = {}
                         needsTravel = true; switched = true
                         log("Pad busy — switching to " .. pad.name)
@@ -597,6 +619,13 @@ local function runPipeline()
             local bailed = false
             local allOursConfirmed = false
             while running do
+                local syncIdx = readPadTarget()
+                if syncIdx ~= padIdx then
+                    padIdx = syncIdx; pad = PAD_CONFIGS[padIdx]; padBlacklist = {}
+                    needsTravel = true; switched = true
+                    log("Pad sync — following to " .. pad.name)
+                    break
+                end
                 local padCount = pad.object:GetAttribute("NumPlayersOnPad") or 0
                 local oursOnly = onlyOursOnPad(pad.name)
                 local realRandom = false
