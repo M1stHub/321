@@ -617,7 +617,7 @@ local function runPipeline()
 
             setCoordStatus("On pad", Color3.fromRGB(80, 220, 120))
             local bailed = false
-            local allOursConfirmed = false
+            local bailTriggers = nil
             while running do
                 local syncIdx = readPadTarget()
                 if syncIdx ~= padIdx then
@@ -626,33 +626,29 @@ local function runPipeline()
                     log("Pad sync — following to " .. pad.name)
                     break
                 end
-                local padCount = pad.object:GetAttribute("NumPlayersOnPad") or 0
-                local oursOnly = onlyOursOnPad(pad.name)
-                local realRandom = false
+                local oursOnPad = getOnPadCount(pad.name)
+                local oursOnly  = onlyOursOnPad(pad.name)
+                local randomNames = {}
                 for name in pairs(allPlayersInside[pad.name] or {}) do
                     if not table.find(ALLOWED_ACCOUNTS, name) and not padBlacklist[name] then
-                        realRandom = true; break
+                        randomNames[name] = true
                     end
                 end
-                local hasRandom = padCount > 0 and not oursOnly and realRandom
-                guiOnPad.Text        = padCount .. "/" .. total
+                local hasRandom = next(randomNames) ~= nil and not oursOnly
+                guiOnPad.Text        = oursOnPad .. "/" .. total
                 guiRandom.Text       = hasRandom and "YES - bail!" or "none"
                 guiRandom.TextColor3 = hasRandom and Color3.fromRGB(255, 80, 80) or Color3.fromRGB(80, 220, 120)
 
-                if not allOursConfirmed and padCount >= total and oursOnly then
-                    allOursConfirmed = true
-                end
-
-                if hasRandom and not allOursConfirmed then
+                if hasRandom then
                     log("Random detected! Bailing...")
                     setCoordStatus("Bailing", Color3.fromRGB(255, 80, 80))
+                    bailTriggers = randomNames
                     bailOff(pad); bailed = true; break
                 end
 
-                if allOursConfirmed then
+                if oursOnPad >= total and oursOnly then
                     log("All " .. total .. " accs on pad!")
                     setCoordStatus("All on pad!", Color3.fromRGB(80, 255, 120))
-                    guiRandom.Text = "none"; guiRandom.TextColor3 = Color3.fromRGB(80, 220, 120)
                     local remote = workspace.Map["Simulation Hub"].Pads[pad.name]:WaitForChild("DungeonSettingsChanged")
                     task.wait(2)
                     log("Setting difficulty: Easy")
@@ -673,10 +669,11 @@ local function runPipeline()
                 task.wait(3)
                 local c = pad.object:GetAttribute("NumPlayersOnPad") or 0
                 if c == 0 then
-                    for name in pairs(allPlayersInside[pad.name] or {}) do
-                        if not table.find(ALLOWED_ACCOUNTS, name) and not padBlacklist[name] then
+                    local insideNow = allPlayersInside[pad.name] or {}
+                    for name in pairs(bailTriggers or {}) do
+                        if insideNow[name] and not padBlacklist[name] then
                             padBlacklist[name] = true
-                            log("Blacklisted " .. name .. " (pad still 0, no energy)")
+                            log("Blacklisted " .. name .. " (still on pad, no energy)")
                         end
                     end
                 end
