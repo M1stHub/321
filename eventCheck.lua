@@ -59,19 +59,28 @@ local Players = game:GetService("Players")
 local playerName = Players.LocalPlayer.Name
 local FLAG_FILE = playerName .. "-MistFlag.txt"
 
-local DUNGEON_MIN_ENERGY = 8
-local DUNGEON_START_ENERGY = 40
+local DUNGEON_MIN_ENERGY    = 8
+local DUNGEON_START_ENERGY  = 40
 
-local lastFlag = nil
+local lastFlag        = nil
+local dungeonStarted  = false
+
+local function startDungeons()
+    if dungeonStarted or not cfg.executeDungeons then return end
+    if game.PlaceId ~= 73902483975735 then return end
+    dungeonStarted = true
+    task.spawn(function()
+        local ok, err = pcall(cfg.executeDungeons)
+        if not ok then warn("[EventCheck] executeDungeons error: " .. tostring(err)) end
+    end)
+end
 
 local function getEnergy()
     return math.floor(ReplicatedPlayerData.get().CurrentEnergy)
 end
 
 local function readFlag()
-    if isfile(FLAG_FILE) then
-        return readfile(FLAG_FILE)
-    end
+    if isfile(FLAG_FILE) then return readfile(FLAG_FILE) end
     return nil
 end
 
@@ -113,11 +122,13 @@ local function switchToLevi()
 end
 
 local function switchToDungeons(fromLevi)
-    if lastFlag == "Dungeons" then return end
-    setFlag("Dungeons")
-    if fromLevi then
-        waitForLeviDone()
+    if lastFlag == "Dungeons" then
+        startDungeons()
+        return
     end
+    setFlag("Dungeons")
+    if fromLevi then waitForLeviDone() end
+    startDungeons()
 end
 
 local function update()
@@ -130,6 +141,8 @@ local function update()
             if game.PlaceId ~= 73902483975735 then
                 print("[MistFlag] Flag is Dungeons but not in hub — teleporting")
                 teleportToHub()
+            else
+                startDungeons()
             end
         else
             print("[MistFlag] Energy too low (" .. energy .. ") — switching to Leviathan")
