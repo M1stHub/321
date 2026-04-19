@@ -56,7 +56,7 @@ local playerName = Players.LocalPlayer.Name
 local FLAG_FILE = playerName .. "-MistFlag.txt"
 
 local DUNGEON_MIN_ENERGY = 10
-local DUNGEON_START_ENERGY = 42
+local DUNGEON_START_ENERGY = 50
 
 local lastFlag = nil
 local dungeonStarted = false
@@ -180,3 +180,13 @@ DataRemote.OnClientInvoke = function(p, ...)
         if not ok then warn("[EventCheck] update() error: " .. tostring(err)) end
     end
 end
+
+task.spawn(function()
+    while true do
+        task.wait(30)
+        if not isInDungeon() then
+            local ok, err = pcall(update)
+            if not ok then warn("[EventCheck] poll error: " .. tostring(err)) end
+        end
+    end
+end)
