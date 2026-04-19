@@ -517,6 +517,7 @@ local function runPipeline()
     guiWaypoint.Text = #wps .. " / " .. #wps
 
     local PAD_SYNC_FILE = "DungeonBotPad.txt"
+    if isfile(PAD_SYNC_FILE) then delfile(PAD_SYNC_FILE) end
     local function readPadTarget()
         if isfile(PAD_SYNC_FILE) then return tonumber(readfile(PAD_SYNC_FILE)) or 1 end
         return 1
