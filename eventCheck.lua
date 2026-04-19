@@ -48,28 +48,19 @@ task.spawn(function()
     end
 end)
 
-local ReplicatedPlayerData
-do
-    local ok, result = pcall(function()
-        return require(game:GetService("ReplicatedStorage").DungeonClient.ReplicatedPlayerData)
-    end)
-    if not ok then
-        warn("[EventCheck] Failed to load ReplicatedPlayerData: " .. tostring(result))
-        return
-    end
-    ReplicatedPlayerData = result
-end
+local DataRemote = game.ReplicatedStorage.DungeonShared:WaitForChild("DataRemote")
+
 local Players = game:GetService("Players")
 
 local playerName = Players.LocalPlayer.Name
 local FLAG_FILE = playerName .. "-MistFlag.txt"
 
-local DUNGEON_MIN_ENERGY    = 10
-local DUNGEON_START_ENERGY  = 50
+local DUNGEON_MIN_ENERGY = 10
+local DUNGEON_START_ENERGY = 42
 
-local lastFlag       = nil
+local lastFlag = nil
 local dungeonStarted = false
-local leviStarted    = false
+local leviStarted = false
 
 local function startDungeons()
     if dungeonStarted or not cfg.executeDungeons then return end
@@ -91,7 +82,8 @@ local function startLevi()
 end
 
 local function getEnergy()
-    return math.floor(ReplicatedPlayerData.get().CurrentEnergy)
+    local data = DataRemote:InvokeServer("GetData")
+    return math.floor(data.CurrentEnergy)
 end
 
 local function readFlag()
@@ -181,10 +173,10 @@ if not isInDungeon() then
     if not ok then warn("[EventCheck] update() error: " .. tostring(err)) end
 end
 
-if ReplicatedPlayerData.OnUpdated and ReplicatedPlayerData.OnUpdated.Event then
-    ReplicatedPlayerData.OnUpdated.Event:Connect(function()
+DataRemote.OnClientInvoke = function(p, ...)
+    if p == "DataUpdated" then
         if isInDungeon() then return end
-        local ok2, err2 = pcall(update)
-        if not ok2 then warn("[EventCheck] update() error: " .. tostring(err2)) end
-    end)
+        local ok, err = pcall(update)
+        if not ok then warn("[EventCheck] update() error: " .. tostring(err)) end
+    end
 end
