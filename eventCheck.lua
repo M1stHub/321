@@ -59,8 +59,8 @@ local Players = game:GetService("Players")
 local playerName = Players.LocalPlayer.Name
 local FLAG_FILE = playerName .. "-MistFlag.txt"
 
-local DUNGEON_MIN_ENERGY    = 8
-local DUNGEON_START_ENERGY  = 40
+local DUNGEON_MIN_ENERGY    = 10
+local DUNGEON_START_ENERGY  = 50
 
 local lastFlag        = nil
 local dungeonStarted  = false
