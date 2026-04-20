@@ -233,12 +233,6 @@ local function getRace()
 end
 
 local function rerollRace()
-    local fragmentsValue = LocalPlayer:FindFirstChild("Data") and LocalPlayer.Data:FindFirstChild("Fragments")
-    local fragments = fragmentsValue and fragmentsValue.Value or 0
-    if fragments < 3000 then
-        warn("[AutoBuild] Skipping reroll — Fragments too low: " .. fragments .. " / 3000")
-        return getRace()
-    end
     warn("[AutoBuild] Rolling for new race...")
     local Event = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
     local Result = Event:InvokeServer("BlackbeardReward", "Reroll", "2")
@@ -321,6 +315,12 @@ local function applyLoadout()
         end
 
         if not raceMatches then
+            local fragmentsValue = LocalPlayer:FindFirstChild("Data") and LocalPlayer.Data:FindFirstChild("Fragments")
+            local fragments = fragmentsValue and fragmentsValue.Value or 0
+            if fragments < 3000 then
+                warn("[AutoBuild] Skipping reroll — Fragments too low: " .. fragments .. " / 3000")
+                break
+            end
             warn("[AutoBuild] Current race: " .. currentRace .. " - does not match desired. Rerolling...")
             currentRace = rerollRace()
             warn("[AutoBuild] New race after reroll: " .. currentRace)
