@@ -168,7 +168,9 @@ local function update()
     end
 end
 
-if not isInDungeon() then
+if isInDungeon() then
+    startDungeons()
+else
     local ok, err = pcall(update)
     if not ok then warn("[EventCheck] update() error: " .. tostring(err)) end
 end
