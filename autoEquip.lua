@@ -1,4 +1,4 @@
-repeat wait() until game:IsLoaded() and game.Players.LocalPlayer
+repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer
 
 task.spawn(function()
     local plr = game.Players.LocalPlayer
@@ -80,7 +80,7 @@ local function StopTween()
         BodyGyro:Destroy()
         BodyGyro = nil
     end
-    
+
     local char = LocalPlayer.Character
     if char then
         for _, part in pairs(char:GetDescendants()) do
@@ -95,40 +95,40 @@ end
 local function TweenTo(targetCFrame)
     local char = LocalPlayer.Character
     if not char then return end
-    
+
     local rootPart = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("UpperTorso")
     if not rootPart then return end
-    
+
     StopTween()
     task.wait(0.1)
-    
+
     local targetPos = targetCFrame.Position
-    
+
     BodyVelocity = Instance.new("BodyVelocity")
     BodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
     BodyVelocity.Velocity = Vector3.zero
     BodyVelocity.Parent = rootPart
-    
+
     BodyGyro = Instance.new("BodyGyro")
     BodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
     BodyGyro.P = 9e4
     BodyGyro.Parent = rootPart
-    
+
     NoClipConnection = RunService.Stepped:Connect(function()
-        if not char or not char.Parent then 
+        if not char or not char.Parent then
             StopTween()
-            return 
+            return
         end
-        
+
         for _, part in pairs(char:GetDescendants()) do
             if part:IsA("BasePart") then
                 part.CanCollide = false
                 part.CanTouch = false
             end
         end
-        
+
         local distance = (rootPart.Position - targetPos).Magnitude
-        
+
         if distance > 3 then
             local direction = (targetPos - rootPart.Position).Unit
             BodyVelocity.Velocity = direction * 300
@@ -158,7 +158,7 @@ local function getEquippedItems()
         warn("[AutoBuild] Inventory data is not a table! Got: " .. tostring(inventory))
         inventory = {}
     end
-    
+
     local equippedSword = "None"
     local equippedGun = "None"
     local equippedFruit = "None"
@@ -168,7 +168,7 @@ local function getEquippedItems()
     local ownedSwords = {}
     local ownedGuns = {}
     local ownedFruits = {}
-    
+
     local playerData = LocalPlayer:FindFirstChild("Data")
     if playerData then
         local devilFruit = playerData:FindFirstChild("DevilFruit")
@@ -176,7 +176,7 @@ local function getEquippedItems()
             equippedFruit = devilFruit.Value
         end
     end
-    
+
     local backpack = LocalPlayer:FindFirstChild("Backpack")
     if backpack then
         for _, tool in pairs(backpack:GetChildren()) do
@@ -190,7 +190,7 @@ local function getEquippedItems()
             end
         end
     end
-    
+
     for _, item in pairs(inventory) do
         if type(item) == "table" then
             if item.Type == "Sword" and item.Name then
@@ -217,7 +217,7 @@ local function getEquippedItems()
             end
         end
     end
-    
+
     return equippedSword, equippedGun, equippedFruit, equippedWear, equippedFightingStyle, wearUIDs, ownedSwords, ownedGuns, ownedFruits
 end
 
@@ -233,6 +233,12 @@ local function getRace()
 end
 
 local function rerollRace()
+    local fragmentsValue = LocalPlayer:FindFirstChild("Data") and LocalPlayer.Data:FindFirstChild("Fragments")
+    local fragments = fragmentsValue and fragmentsValue.Value or 0
+    if fragments < 3000 then
+        warn("[AutoBuild] Skipping reroll — Fragments too low: " .. fragments .. " / 3000")
+        return getRace()
+    end
     warn("[AutoBuild] Rolling for new race...")
     local Event = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
     local Result = Event:InvokeServer("BlackbeardReward", "Reroll", "2")
@@ -247,17 +253,17 @@ local function buyFightingStyle(styleName)
         warn("[AutoBuild] Unknown fighting style: " .. styleName)
         return false
     end
-    
+
     warn("[AutoBuild] Tweening to " .. styleName .. " NPC...")
     local location = FightingStyleLocations[styleName]
     TweenTo(location)
     WaitForTween()
-    
+
     warn("[AutoBuild] Buying fighting style: " .. styleName)
     local Event = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
     local Result = Event:InvokeServer(remote)
     task.wait(1)
-    
+
     warn("[AutoBuild] Buy result for " .. styleName .. ": " .. tostring(Result))
     if Result == 0 then
         warn("[AutoBuild] Failed to buy " .. styleName .. ", moving to next...")
@@ -279,7 +285,7 @@ local function applyLoadout()
         local placeId = game.PlaceId
         if placeId == 7449423635 then
             warn("[AutoBuild] Already in Sea 3, proceeding with equip...")
-        elseif placeId == 4442272183 or placeId == 2753915549 or placeId == 73902483975735 then
+        elseif placeId == 4442272183 or placeId == 2753915549 then
             warn("[AutoBuild] In Sea 2 or Sea 1, traveling to Sea 3 first...")
             local statusFileName = LocalPlayer.Name .. "-autoBuild.json"
             writefile(statusFileName, '{"status": "traveled"}')
