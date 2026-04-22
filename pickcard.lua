@@ -93,6 +93,9 @@ local function scanAndClick()
     return false
 end
 
+game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
+game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)
+
 task.spawn(function()
     warn("Card Picker started - scanning every 0.5s")
     while task.wait(0.5) do
