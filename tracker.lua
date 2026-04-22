@@ -6,8 +6,11 @@ local RepStorage = game:GetService("ReplicatedStorage")
 local requestFunc = request or http_request or (syn and syn.request)
 if not requestFunc then return end
 
-local webhooks = getgenv().webhooks
+local webhooks = getgenv().trackerWebhooks
 if not webhooks then return end
+
+local lastSent = 0
+local COOLDOWN = 30
 
 local function formatFrags(frags)
     frags = frags or 0
@@ -38,11 +41,14 @@ pcall(function()
 end)
 
 local function ImGoated()
+    local now = os.clock()
+    if now - lastSent < COOLDOWN then return end
+
     pcall(function()
         local player = Players.LocalPlayer
         if not player then return end
 
-        local webhookUrl = webhooks[player.UserId]
+        local webhookUrl = webhooks[player.Name]
         if not webhookUrl then return end
 
         local remotesObj
@@ -50,14 +56,14 @@ local function ImGoated()
             remotesObj = RepStorage:WaitForChild("Remotes", 10)
         end)
         if not remotesSuccess or not remotesObj then return end
-        
+
         local comm = remotesObj:FindFirstChild("CommF_")
         if not comm then return end
 
         local success, response = pcall(function()
             return comm:InvokeServer("getInventory")
         end)
-        
+
         if not success or typeof(response) ~= "table" then return end
 
         local frags = 0
@@ -81,21 +87,21 @@ local function ImGoated()
 
         local mythicalFruits = {}
         local legendaryFruits = {}
-        
+
         for _, item in pairs(response) do
             pcall(function()
                 if typeof(item) ~= "table" then return end
-        
+
                 if tracker[item.Name] ~= nil then
                     tracker[item.Name] = tonumber(item.Count) or 0
                 end
-        
+
                 if item.Type == "Blox Fruit" then
                     local rarity = tonumber(item.Rarity) or 0
                     local name = item.DisplayName or item.Name or "Unknown"
                     local count = tonumber(item.Count) or 1
                     local entry = name .. " x" .. count
-        
+
                     if rarity == 4 then
                         table.insert(mythicalFruits, entry)
                     elseif rarity == 3 then
@@ -103,7 +109,7 @@ local function ImGoated()
                     end
                 end
             end)
-        end        
+        end
 
         local mythicalList = #mythicalFruits > 0 and table.concat(mythicalFruits, "\n") or "None"
         local legendaryList = #legendaryFruits > 0 and table.concat(legendaryFruits, "\n") or "None"
@@ -120,7 +126,7 @@ local function ImGoated()
             {name = "", value = "||" .. (player.Name or "Unknown") .. "||", inline = false}
         }
 
-        pcall(function()
+        local ok = pcall(function()
             requestFunc({
                 Url = webhookUrl,
                 Method = "POST",
@@ -136,6 +142,10 @@ local function ImGoated()
                 })
             })
         end)
+
+        if ok then
+            lastSent = os.clock()
+        end
     end)
 end
 
