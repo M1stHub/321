@@ -115,6 +115,12 @@ end
 
 local function switchToLevi()
     setFlag("Leviathan")
+    local allAccounts = (getgenv().EventCheckConfig or {}).allowedAccounts or {}
+    for _, name in ipairs(allAccounts) do
+        if name ~= playerName then
+            pcall(writefile, name .. "-MistFlag.txt", "Leviathan")
+        end
+    end
     startLevi()
 end
 
