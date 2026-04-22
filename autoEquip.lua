@@ -279,7 +279,7 @@ local function applyLoadout()
         local placeId = game.PlaceId
         if placeId == 7449423635 then
             warn("[AutoBuild] Already in Sea 3, proceeding with equip...")
-        elseif placeId == 4442272183 or placeId == 2753915549 then
+        elseif placeId == 4442272183 or placeId == 2753915549 or placeId == 73902483975735 then
             warn("[AutoBuild] In Sea 2 or Sea 1, traveling to Sea 3 first...")
             local statusFileName = LocalPlayer.Name .. "-autoBuild.json"
             writefile(statusFileName, '{"status": "traveled"}')
