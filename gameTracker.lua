@@ -1,7 +1,10 @@
 repeat task.wait() until game:IsLoaded()
 local Players = game:GetService("Players")
 local RepStorage = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
 local player = Players.LocalPlayer
+local requestFunc = request or http_request or (syn and syn.request)
+local mscrollPinged = false
 
 local Tracker = Instance.new("ScreenGui")
 Tracker.Name = "Tracker"
@@ -35,7 +38,7 @@ local MainBG = newInstance("Frame", Tracker, {
 	BorderSizePixel = 0,
 	AnchorPoint = Vector2.new(1, 0),
 	Position = UDim2.new(1, -3, 0, -55),
-	Size = UDim2.new(0, 250, 0, 305)
+	Size = UDim2.new(0, 250, 0, 345)
 })
 addCorner(MainBG)
 addStroke(MainBG)
@@ -57,7 +60,7 @@ local Items = newInstance("Frame", MainBG, {
 	BackgroundTransparency = 1,
 	BorderSizePixel = 0,
 	Position = UDim2.new(-0.0329896919, 0, 0.145446181, 0),
-	Size = UDim2.new(0, 250, 0, 260)
+	Size = UDim2.new(0, 250, 0, 295)
 })
 newInstance("UIListLayout", Items, {
 	SortOrder = Enum.SortOrder.LayoutOrder,
@@ -101,12 +104,17 @@ local function makeBar(parent, itemName)
 		Position = UDim2.new(0.860000014, 0, -5, 0),
 		Size = UDim2.new(0, 25, 0, 25),
 		Font = Enum.Font.Arial,
-		Text = "0/99",
+		Text = "0/?",
 		TextColor3 = Color3.fromRGB(255, 255, 255),
 		TextSize = 14
 	})
 	return {Label = label, Bar = bar, Counter = counter}
 end
+
+local maxValues = {
+	["Mythical Scroll"] = 10,
+	["Rings"] = 5,
+}
 
 local itemData = {
 	"Leviathan Heart",
@@ -114,7 +122,8 @@ local itemData = {
 	"Mythical Scroll",
 	"Terror Eyes",
 	"Fool's Gold",
-	"Electrical Wings"
+	"Electrical Wings",
+	"Rings",
 }
 
 local trackerItems = {}
@@ -124,21 +133,22 @@ for i, name in ipairs(itemData) do
 	info.Label.LayoutOrder = i
 end
 
-local function updateBar(current, info)
-	local percent = math.clamp(current / 99, 0, 1)
+local function updateBar(name, current, info)
+	local max = maxValues[name] or 99
+	local percent = math.clamp(current / max, 0, 1)
 	local color
-	if current <= 24 then
+	if percent < 0.25 then
 		color = Color3.fromRGB(255, 0, 0)
-	elseif current <= 49 then
+	elseif percent < 0.5 then
 		color = Color3.fromRGB(255, 165, 0)
-	elseif current <= 74 then
+	elseif percent < 0.75 then
 		color = Color3.fromRGB(255, 255, 0)
 	else
 		color = Color3.fromRGB(0, 255, 0)
 	end
 	info.Bar.Size = UDim2.new(percent, 0, 1, 0)
 	info.Bar.BackgroundColor3 = color
-	info.Counter.Text = current .. "/99"
+	info.Counter.Text = current .. "/" .. max
 	info.Counter.TextColor3 = color
 end
 
@@ -163,13 +173,38 @@ local function updateTracker()
 	local inventory = getInventory()
 	for _, item in pairs(inventory) do
 		pcall(function()
-			if typeof(item) == "table" and trackerData[item.Name] ~= nil then
+			if typeof(item) ~= "table" then return end
+			if trackerData[item.Name] ~= nil then
 				trackerData[item.Name] = tonumber(item.Count) or 0
+			end
+			local nameLower = (item.Name or ""):lower()
+			if nameLower:find("ring") then
+				trackerData["Rings"] = (trackerData["Rings"] or 0) + (tonumber(item.Count) or 1)
 			end
 		end)
 	end
 	for name, value in pairs(trackerData) do
-		updateBar(value, trackerItems[name])
+		updateBar(name, value, trackerItems[name])
+	end
+
+	local mscrollCount = trackerData["Mythical Scroll"] or 0
+	if mscrollCount >= 10 and not mscrollPinged then
+		mscrollPinged = true
+		local pingCfg = getgenv().mscrollPingConfig
+		if pingCfg and pingCfg.webhookUrl and requestFunc then
+			pcall(function()
+				requestFunc({
+					Url = pingCfg.webhookUrl,
+					Method = "POST",
+					Headers = { ["Content-Type"] = "application/json" },
+					Body = HttpService:JSONEncode({
+						content = "<@" .. tostring(pingCfg.discordUserId) .. "> 10 mscroll!"
+					})
+				})
+			end)
+		end
+	elseif mscrollCount < 10 then
+		mscrollPinged = false
 	end
 end
 
