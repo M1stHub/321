@@ -81,7 +81,7 @@ local playerName = Players.LocalPlayer.Name
 local FLAG_FILE = playerName .. "-MistFlag.txt"
 
 local DUNGEON_MIN_ENERGY = 10
-local DUNGEON_START_ENERGY = 48
+local DUNGEON_START_ENERGY = 50
 
 local lastFlag = nil
 local dungeonStarted = false
@@ -151,12 +151,16 @@ local function switchToLevi()
 end
 
 local function switchToDungeons(fromLevi)
-    if lastFlag == "Dungeons" then
-        startDungeons()
-        return
+    if lastFlag ~= "Dungeons" then
+        setFlag("Dungeons")
+        sendSwitchWebhook("→ Dungeons")
+        local allAccounts = (getgenv().EventCheckConfig or {}).allowedAccounts or {}
+        for _, name in ipairs(allAccounts) do
+            if name ~= playerName then
+                pcall(writefile, name .. "-MistFlag.txt", "Dungeons")
+            end
+        end
     end
-    setFlag("Dungeons")
-    sendSwitchWebhook("→ Dungeons")
     if fromLevi then waitForLeviDone() end
     startDungeons()
 end
