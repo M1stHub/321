@@ -1,5 +1,5 @@
 local RunService = game:GetService("RunService")
-local Players    = game:GetService("Players")
+local Players = game:GetService("Players")
 
 local cfg = getgenv().DungeonBotConfig or {}
 local ALLOWED_ACCOUNTS = cfg.allowedAccounts or {
@@ -8,20 +8,20 @@ local ALLOWED_ACCOUNTS = cfg.allowedAccounts or {
     "3",
     "4",
 }
-local NEAR_RADIUS   = cfg.nearRadius  or 50
-local REACH_DIST    = cfg.reachDist   or 5
+local NEAR_RADIUS = cfg.nearRadius or 50
+local REACH_DIST = cfg.reachDist or 5
 local PAD_WAIT_SECS = cfg.padWaitSecs or 20
 local STUCK_CHECK = cfg.stuckCheck or 1
 local STUCK_LIMIT = cfg.stuckLimit or 3
-local STUCK_MOVE  = cfg.stuckMove  or 2
+local STUCK_MOVE = cfg.stuckMove or 2
 
 local player = Players.LocalPlayer
 local character, humanoid, hrp
 
 local function refreshCharacter()
     character = player.Character or player.CharacterAdded:Wait()
-    humanoid  = character:WaitForChild("Humanoid")
-    hrp       = character:WaitForChild("HumanoidRootPart")
+    humanoid = character:WaitForChild("Humanoid")
+    hrp = character:WaitForChild("HumanoidRootPart")
 end
 refreshCharacter()
 player.CharacterAdded:Connect(refreshCharacter)
@@ -92,7 +92,7 @@ local function divider()
 end
 
 sectionHeader("PATH WALK")
-local guiPath     = makeRow("Path")
+local guiPath = makeRow("Path")
 local guiPWStatus = makeRow("Status")
 local guiWaypoint = makeRow("Waypoint")
 nextY += 2
@@ -108,9 +108,9 @@ nextY += 28
 divider()
 sectionHeader("PAD COORD")
 local guiCoordStatus = makeRow("Status")
-local guiNearby      = makeRow("Nearby")
-local guiOnPad       = makeRow("On Pad")
-local guiRandom      = makeRow("Randoms")
+local guiNearby = makeRow("Nearby")
+local guiOnPad = makeRow("On Pad")
+local guiRandom = makeRow("Randoms")
 divider()
 
 nextY += 2
@@ -152,7 +152,7 @@ local pads = {
     { path = workspace.Map["Simulation Hub"].Pads.DUNGEON_TELEPORTER3.Pad, name = "DUNGEON_TELEPORTER3" },
 }
 
-local HEIGHT_VIS     = 20
+local HEIGHT_VIS = 20
 local VISUALIZER_TAG = "PadVisualizer_"
 
 for _, padInfo in ipairs(pads) do
@@ -368,7 +368,7 @@ end
 
 local PAD_CONFIGS = {
     {
-        name   = "DUNGEON_TELEPORTER3",
+        name = "DUNGEON_TELEPORTER3",
         object = workspace.Map["Simulation Hub"].Pads.DUNGEON_TELEPORTER3,
         transit = {},
         walkOnPositions = {
@@ -400,7 +400,7 @@ local PAD_CONFIGS = {
         },
     },
     {
-        name   = "DUNGEON_TELEPORTER2",
+        name = "DUNGEON_TELEPORTER2",
         object = workspace.Map["Simulation Hub"].Pads.DUNGEON_TELEPORTER2,
         transit = {
             CFrame.new(-423.566925, 235.028915, -387.250397, 0.0170264486, 1.28300828e-08, -0.999855042, -1.71209236e-09, 1, 1.28027882e-08, 0.999855042, 1.49385815e-09, 0.0170264486).Position,
@@ -434,7 +434,7 @@ local PAD_CONFIGS = {
         },
     },
     {
-        name   = "DUNGEON_TELEPORTER1",
+        name = "DUNGEON_TELEPORTER1",
         object = workspace.Map["Simulation Hub"].Pads.DUNGEON_TELEPORTER1,
         transit = {
             CFrame.new(-423.566925, 235.028915, -387.250397, 0.0170264486, 1.28300828e-08, -0.999855042, -1.71209236e-09, 1, 1.28027882e-08, 0.999855042, 1.49385815e-09, 0.0170264486).Position,
@@ -491,10 +491,10 @@ local function runPipeline()
     running = true
     runBtn.Text = "Stop"; runBtn.BackgroundColor3 = Color3.fromRGB(150, 35, 35)
 
-    local pathIdx  = selectPath()
+    local pathIdx = selectPath()
     local pathData = PATHS[pathIdx]
-    local wps      = pathData.waypoints
-    local spheres  = buildVisualizer(pathData)
+    local wps = pathData.waypoints
+    local spheres = buildVisualizer(pathData)
 
     guiPath.Text = "Path " .. pathIdx
     setPWStatus("Walking", Color3.fromRGB(80, 220, 120))
@@ -516,167 +516,93 @@ local function runPipeline()
     setPWStatus("Done", Color3.fromRGB(80, 220, 120))
     guiWaypoint.Text = #wps .. " / " .. #wps
 
-    local PAD_SYNC_FILE = "DungeonBotPad.txt"
-    if isfile(PAD_SYNC_FILE) then delfile(PAD_SYNC_FILE) end
-    local function readPadTarget()
-        if isfile(PAD_SYNC_FILE) then return tonumber(readfile(PAD_SYNC_FILE)) or 1 end
-        return 1
-    end
-    local function writePadTarget(idx) writefile(PAD_SYNC_FILE, tostring(idx)) end
-
-    local total        = #ALLOWED_ACCOUNTS
-    local padIdx       = readPadTarget()
-    local pad          = PAD_CONFIGS[padIdx]
-    local padBlacklist = {}
-    local needsTravel  = (padIdx ~= 1)
+    -- multi-pad swap logic removed; always use pad 3 (DUNGEON_TELEPORTER3)
+    local total = #ALLOWED_ACCOUNTS
+    local pad = PAD_CONFIGS[1]
 
     setCoordStatus("Waiting nearby", Color3.fromRGB(200, 160, 50))
     log("Waiting for all " .. total .. " accs nearby...")
     while running do
-        local n = getNearbyCount(PAD_CONFIGS[1].name)
+        local n = getNearbyCount(pad.name)
         guiNearby.Text = n .. "/" .. total
-        guiOnPad.Text  = PAD_CONFIGS[1].object:GetAttribute("NumPlayersOnPad") or "?"
+        guiOnPad.Text = pad.object:GetAttribute("NumPlayersOnPad") or "?"
         if n >= total then break end
         task.wait(0.5)
     end
     if not running then stopPipeline(); return end
     log("All accounts nearby!")
 
+    setCoordStatus("Waiting pad=0", Color3.fromRGB(200, 160, 50))
     while running do
-        -- sync to whichever pad another account may have already switched to
-        local targetIdx = readPadTarget()
-        if targetIdx ~= padIdx then
-            padIdx       = targetIdx
-            padBlacklist = {}
-            needsTravel  = true
+        local c = pad.object:GetAttribute("NumPlayersOnPad") or 0
+        guiOnPad.Text = c .. "/" .. total
+        if c == 0 then
+            local t = allPlayersInside[pad.name]
+            if t then for k in pairs(t) do t[k] = nil end end
+            break
         end
-        pad = PAD_CONFIGS[padIdx]
+        task.wait(0.3)
+    end
+    if not running then stopPipeline(); return end
 
-        if needsTravel then
-            needsTravel = false
-            log("Travelling to " .. pad.name)
-            setCoordStatus("Travelling to " .. pad.name, Color3.fromRGB(100, 180, 255))
-            for _, wp in ipairs(pad.transit) do
-                walkTo(wp); if not running then break end
+    log("Pad empty — walking on " .. pad.name)
+    setCoordStatus("Walking on", Color3.fromRGB(100, 180, 255))
+    walkTo(pad.walkOnPositions[1])
+    if not running then stopPipeline(); return end
+
+    setCoordStatus("On pad", Color3.fromRGB(80, 220, 120))
+    local padBlacklist = {}
+    local bailed = false
+    local bailTriggers = nil
+    while running do
+        local oursOnPad = getOnPadCount(pad.name)
+        local oursOnly = onlyOursOnPad(pad.name)
+        local randomNames = {}
+        for name in pairs(allPlayersInside[pad.name] or {}) do
+            if not table.find(ALLOWED_ACCOUNTS, name) and not padBlacklist[name] then
+                randomNames[name] = true
             end
-            if not running then break end
-            local loiterPos = pad.walkOnPositions[math.random(#pad.walkOnPositions)]
-            walkTo(loiterPos)
-            if not running then break end
-            setCoordStatus("Waiting nearby " .. pad.name, Color3.fromRGB(200, 160, 50))
-            while running do
-                local n = getNearbyCount(pad.name)
-                guiNearby.Text = n .. "/" .. total
-                if n >= total then break end
-                task.wait(0.5)
-            end
-            if not running then break end
-            log("All accounts nearby " .. pad.name)
+        end
+        local hasRandom = next(randomNames) ~= nil and not oursOnly
+        guiOnPad.Text = oursOnPad .. "/" .. total
+        guiRandom.Text = hasRandom and "YES - bail!" or "none"
+        guiRandom.TextColor3 = hasRandom and Color3.fromRGB(255, 80, 80) or Color3.fromRGB(80, 220, 120)
+
+        if hasRandom then
+            log("Random detected! Bailing...")
+            setCoordStatus("Bailing", Color3.fromRGB(255, 80, 80))
+            bailTriggers = randomNames
+            bailOff(pad); bailed = true; break
         end
 
-        setCoordStatus("Waiting " .. pad.name .. "=0", Color3.fromRGB(200, 160, 50))
-        local waitStart = tick()
-        local switched = false
-        while running do
-            local syncIdx = readPadTarget()
-            if syncIdx ~= padIdx then
-                padIdx = syncIdx; pad = PAD_CONFIGS[padIdx]; padBlacklist = {}
-                needsTravel = true; switched = true
-                log("Pad sync — following to " .. pad.name)
-                break
-            end
-            local c = pad.object:GetAttribute("NumPlayersOnPad") or 0
-            guiOnPad.Text = c .. "/" .. total
-            if c == 0 then
-                local t = allPlayersInside[pad.name]
-                if t then for k in pairs(t) do t[k] = nil end end
-                break
-            end
-            if tick() - waitStart >= PAD_WAIT_SECS then
-                for i, alt in ipairs(PAD_CONFIGS) do
-                    if i ~= padIdx and (alt.object:GetAttribute("NumPlayersOnPad") or 0) == 0 then
-                        writePadTarget(i)
-                        padIdx = i; pad = alt; padBlacklist = {}
-                        needsTravel = true; switched = true
-                        log("Pad busy — switching to " .. pad.name)
-                        break
-                    end
-                end
-                if switched then break end
-                waitStart = tick()
-            end
-            task.wait(0.3)
+        if oursOnPad >= total and oursOnly then
+            log("All " .. total .. " accs on pad!")
+            setCoordStatus("All on pad!", Color3.fromRGB(80, 255, 120))
+            local remote = workspace.Map["Simulation Hub"].Pads[pad.name]:WaitForChild("DungeonSettingsChanged")
+            task.wait(2)
+            log("Setting difficulty: Easy")
+            remote:FireServer("Difficulty", "Easy")
+            task.wait(1)
+            log("Starting dungeon...")
+            remote:FireServer("Start")
+            running = false
+            runBtn.Text = "Run"; runBtn.BackgroundColor3 = Color3.fromRGB(35, 70, 180)
+            return
         end
-        if not running then break end
 
-        if not switched then
-            log("Pad empty — walking on " .. pad.name)
-            setCoordStatus("Walking on", Color3.fromRGB(100, 180, 255))
-            local walkOnPos = pad.walkOnPositions[math.random(#pad.walkOnPositions)]
-            walkTo(walkOnPos)
-            if not running then break end
+        task.wait(0.25)
+    end
 
-            setCoordStatus("On pad", Color3.fromRGB(80, 220, 120))
-            local bailed = false
-            local bailTriggers = nil
-            while running do
-                local syncIdx = readPadTarget()
-                if syncIdx ~= padIdx then
-                    padIdx = syncIdx; pad = PAD_CONFIGS[padIdx]; padBlacklist = {}
-                    needsTravel = true; switched = true
-                    log("Pad sync — following to " .. pad.name)
-                    break
-                end
-                local oursOnPad = getOnPadCount(pad.name)
-                local oursOnly  = onlyOursOnPad(pad.name)
-                local randomNames = {}
-                for name in pairs(allPlayersInside[pad.name] or {}) do
-                    if not table.find(ALLOWED_ACCOUNTS, name) and not padBlacklist[name] then
-                        randomNames[name] = true
-                    end
-                end
-                local hasRandom = next(randomNames) ~= nil and not oursOnly
-                guiOnPad.Text        = oursOnPad .. "/" .. total
-                guiRandom.Text       = hasRandom and "YES - bail!" or "none"
-                guiRandom.TextColor3 = hasRandom and Color3.fromRGB(255, 80, 80) or Color3.fromRGB(80, 220, 120)
-
-                if hasRandom then
-                    log("Random detected! Bailing...")
-                    setCoordStatus("Bailing", Color3.fromRGB(255, 80, 80))
-                    bailTriggers = randomNames
-                    bailOff(pad); bailed = true; break
-                end
-
-                if oursOnPad >= total and oursOnly then
-                    log("All " .. total .. " accs on pad!")
-                    setCoordStatus("All on pad!", Color3.fromRGB(80, 255, 120))
-                    local remote = workspace.Map["Simulation Hub"].Pads[pad.name]:WaitForChild("DungeonSettingsChanged")
-                    task.wait(2)
-                    log("Setting difficulty: Hard")
-                    remote:FireServer("Difficulty", "Hard")
-                    task.wait(1)
-                    log("Starting dungeon...")
-                    remote:FireServer("Start")
-                    running = false
-                    runBtn.Text = "Run"; runBtn.BackgroundColor3 = Color3.fromRGB(35, 70, 180)
-                    return
-                end
-
-                task.wait(0.25)
-            end
-
-            if bailed then
-                log("Waiting for pad to clear...")
-                task.wait(3)
-                local c = pad.object:GetAttribute("NumPlayersOnPad") or 0
-                if c == 0 then
-                    local insideNow = allPlayersInside[pad.name] or {}
-                    for name in pairs(bailTriggers or {}) do
-                        if insideNow[name] and not padBlacklist[name] then
-                            padBlacklist[name] = true
-                            log("Blacklisted " .. name .. " (still on pad, no energy)")
-                        end
-                    end
+    if bailed then
+        log("Waiting for pad to clear...")
+        task.wait(3)
+        local c = pad.object:GetAttribute("NumPlayersOnPad") or 0
+        if c == 0 then
+            local insideNow = allPlayersInside[pad.name] or {}
+            for name in pairs(bailTriggers or {}) do
+                if insideNow[name] and not padBlacklist[name] then
+                    padBlacklist[name] = true
+                    log("Blacklisted " .. name .. " (still on pad)")
                 end
             end
         end
@@ -707,5 +633,5 @@ else
     currentTask = task.spawn(runPipeline)
 end
 
-_G.runBot  = function() if not running then currentTask = task.spawn(runPipeline) end end
+_G.runBot = function() if not running then currentTask = task.spawn(runPipeline) end end
 _G.stopBot = stopPipeline
