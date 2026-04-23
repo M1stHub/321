@@ -59,7 +59,7 @@ if webhookUrl then
 
         local seatWait = 0
         repeat 
-            task.wait(0.1)
+            task.wait(2)
             seatWait = seatWait + 0.1
         until seatUsed or seatWait > 120
 
@@ -81,7 +81,7 @@ if webhookUrl then
         local heartGone = false
         local heartGoneWait = 0
         while not heartGone and heartGoneWait < 300 do
-            task.wait(0.5)
+            task.wait(2)
             heartGoneWait = heartGoneWait + 0.5
             if not (workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("FrozenHeart")) then
                 heartGone = true
