@@ -56,7 +56,7 @@ local playerName = Players.LocalPlayer.Name
 local FLAG_FILE = playerName .. "-MistFlag.txt"
 
 local DUNGEON_MIN_ENERGY = 10
-local DUNGEON_START_ENERGY = 50
+local DUNGEON_START_ENERGY = 48
 
 local lastFlag = nil
 local dungeonStarted = false
