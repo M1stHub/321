@@ -1,4 +1,29 @@
 local cfg = getgenv().EventCheckConfig or {}
+local HttpService = game:GetService("HttpService")
+local requestFunc = request or http_request or (syn and syn.request)
+
+local function sendSwitchWebhook(direction)
+    local sw = cfg.switchWebhook
+    if not sw or not sw.url or not requestFunc then return end
+    local Players = game:GetService("Players")
+    if Players.LocalPlayer.Name ~= sw.senderAccount then return end
+    pcall(function()
+        requestFunc({
+            Url = sw.url,
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = HttpService:JSONEncode({
+                username = "mode switch",
+                embeds = {{
+                    title = "Mode Switch",
+                    description = direction,
+                    color = direction:find("Dungeons") and 0x00BFFF or 0xFF6600,
+                    timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+                }}
+            })
+        })
+    end)
+end
 
 local function isInDungeon()
     local leaderstats = game:GetService("Players").LocalPlayer:FindFirstChild("leaderstats")
@@ -56,7 +81,7 @@ local playerName = Players.LocalPlayer.Name
 local FLAG_FILE = playerName .. "-MistFlag.txt"
 
 local DUNGEON_MIN_ENERGY = 10
-local DUNGEON_START_ENERGY = 48
+local DUNGEON_START_ENERGY = 50
 
 local lastFlag = nil
 local dungeonStarted = false
@@ -115,6 +140,7 @@ end
 
 local function switchToLevi()
     setFlag("Leviathan")
+    sendSwitchWebhook("→ Leviathan")
     local allAccounts = (getgenv().EventCheckConfig or {}).allowedAccounts or {}
     for _, name in ipairs(allAccounts) do
         if name ~= playerName then
@@ -130,6 +156,7 @@ local function switchToDungeons(fromLevi)
         return
     end
     setFlag("Dungeons")
+    sendSwitchWebhook("→ Dungeons")
     if fromLevi then waitForLeviDone() end
     startDungeons()
 end
