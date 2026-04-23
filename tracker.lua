@@ -87,6 +87,7 @@ local function ImGoated()
 
         local mythicalFruits = {}
         local legendaryFruits = {}
+        local rings = {}
 
         for _, item in pairs(response) do
             pcall(function()
@@ -94,6 +95,13 @@ local function ImGoated()
 
                 if tracker[item.Name] ~= nil then
                     tracker[item.Name] = tonumber(item.Count) or 0
+                end
+
+                local nameLower = (item.Name or ""):lower()
+                if nameLower:find("ring") then
+                    local displayName = item.DisplayName or item.Name or "Unknown"
+                    local count = tonumber(item.Count) or 1
+                    table.insert(rings, displayName .. " x" .. count)
                 end
 
                 if item.Type == "Blox Fruit" then
@@ -113,6 +121,7 @@ local function ImGoated()
 
         local mythicalList = #mythicalFruits > 0 and table.concat(mythicalFruits, "\n") or "None"
         local legendaryList = #legendaryFruits > 0 and table.concat(legendaryFruits, "\n") or "None"
+        local ringList = #rings > 0 and table.concat(rings, "\n") or "None"
 
         local fields = {
             {name = "Fragments", value = formatFrags(frags), inline = true},
@@ -123,6 +132,7 @@ local function ImGoated()
             {name = "Fool's Gold", value = tostring(tracker["Fool's Gold"]), inline = true},
             {name = "Mythical Fruits", value = "```\n" .. mythicalList .. "\n```", inline = false},
             {name = "Legendary Fruits", value = "```\n" .. legendaryList .. "\n```", inline = false},
+            {name = "Rings", value = "```\n" .. ringList .. "\n```", inline = false},
             {name = "", value = "||" .. (player.Name or "Unknown") .. "||", inline = false}
         }
 
