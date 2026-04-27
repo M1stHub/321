@@ -65,7 +65,6 @@ local FightingStyleBuyRemotes = {
 
 local NoClipConnection
 local BodyVelocity
-local BodyGyro
 
 local function StopTween()
     if NoClipConnection then
@@ -75,10 +74,6 @@ local function StopTween()
     if BodyVelocity then
         BodyVelocity:Destroy()
         BodyVelocity = nil
-    end
-    if BodyGyro then
-        BodyGyro:Destroy()
-        BodyGyro = nil
     end
 
     local char = LocalPlayer.Character
@@ -105,14 +100,10 @@ local function TweenTo(targetCFrame)
     local targetPos = targetCFrame.Position
 
     BodyVelocity = Instance.new("BodyVelocity")
-    BodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    BodyVelocity.P = 1e5
     BodyVelocity.Velocity = Vector3.zero
     BodyVelocity.Parent = rootPart
-
-    BodyGyro = Instance.new("BodyGyro")
-    BodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
-    BodyGyro.P = 9e4
-    BodyGyro.Parent = rootPart
 
     NoClipConnection = RunService.Stepped:Connect(function()
         if not char or not char.Parent then
@@ -127,19 +118,12 @@ local function TweenTo(targetCFrame)
             end
         end
 
-        local distance = (rootPart.Position - targetPos).Magnitude
-
-        if distance > 3 then
-            local direction = (targetPos - rootPart.Position).Unit
-            BodyVelocity.Velocity = direction * 300
-            BodyGyro.CFrame = CFrame.new(rootPart.Position, targetPos)
-        elseif distance > 1 then
-            local direction = (targetPos - rootPart.Position).Unit
-            BodyVelocity.Velocity = direction * (distance * 30)
-            BodyGyro.CFrame = CFrame.new(rootPart.Position, targetPos)
-        else
+        local dist = (rootPart.Position - targetPos).Magnitude
+        if dist <= 8 then
             BodyVelocity.Velocity = Vector3.zero
             StopTween()
+        else
+            BodyVelocity.Velocity = (targetPos - rootPart.Position).Unit * 300
         end
     end)
 end
@@ -269,17 +253,79 @@ local function buyFightingStyle(styleName)
 end
 
 
+local function isLoadoutGood()
+    local config = getgenv().AutoLoadout
+    local currentSword, currentGun, currentFruit, currentWear, currentFightingStyle, _, _, _, _ = getEquippedItems()
+    local currentRace = getRace()
+
+    local function matchesAny(current, list)
+        list = type(list) == "table" and list or {list}
+        for _, v in ipairs(list) do
+            if v ~= "" and current == v then return true end
+        end
+        return false
+    end
+
+    if not matchesAny(currentRace, config.race) then return false end
+    if not matchesAny(currentFightingStyle, config.fightingStyles) then return false end
+    if not matchesAny(currentFruit, config.fruit) then return false end
+    if not matchesAny(currentSword, config.sword) then return false end
+    if not matchesAny(currentGun, config.gun) then return false end
+
+    local wears = type(config.wear) == "table" and config.wear or {config.wear}
+    for _, wear in ipairs(wears) do
+        if wear ~= "" then
+            if string.find(currentWear, wear, 1, true) then return true end
+        end
+    end
+    return false
+end
+
+local function runPostLoad()
+    if getgenv().AutoBuildPostLoad then
+        if type(getgenv().AutoBuildPostLoad) == "function" then
+            task.spawn(function()
+                local ok, err = pcall(getgenv().AutoBuildPostLoad)
+                if not ok then warn("[AutoBuild] Error running post-equip function: " .. tostring(err)) end
+            end)
+        elseif type(getgenv().AutoBuildPostLoad) == "table" then
+            task.spawn(function()
+                for _, entry in ipairs(getgenv().AutoBuildPostLoad) do
+                    if type(entry) == "string" then
+                        local ok, err = pcall(function()
+                            warn("[AutoBuild] Loading post-equip script: " .. entry)
+                            loadstring(game:HttpGet(entry))()
+                        end)
+                        if not ok then warn("[AutoBuild] Error loading post-equip script: " .. tostring(err)) end
+                    elseif type(entry) == "function" then
+                        local ok, err = pcall(entry)
+                        if not ok then warn("[AutoBuild] Error running post-equip function: " .. tostring(err)) end
+                    end
+                end
+            end)
+        end
+    else
+        print("[AutoBuild] No post-equip scripts defined.")
+    end
+end
+
 local function applyLoadout()
     if not getgenv().AutoLoadout.autoEquip then
         return
     end
     warn("[AutoBuild] Checking loadout...")
 
+    if isLoadoutGood() then
+        warn("[AutoBuild] Loadout already correct, skipping equip and running post-load.")
+        runPostLoad()
+        return
+    end
+
     if getgenv().AutoLoadout.autoTravel then
         local placeId = game.PlaceId
         if placeId == 7449423635 then
             warn("[AutoBuild] Already in Sea 3, proceeding with equip...")
-        elseif placeId == 4442272183 or placeId == 2753915549 or placeId == 73902483975735 then
+        elseif placeId == 4442272183 or placeId == 2753915549 then
             warn("[AutoBuild] In Sea 2 or Sea 1, traveling to Sea 3 first...")
             local statusFileName = LocalPlayer.Name .. "-autoBuild.json"
             writefile(statusFileName, '{"status": "traveled"}')
@@ -481,33 +527,7 @@ local function applyLoadout()
     end
 
     warn("[AutoBuild] Loadout applied!")
-
-    if getgenv().AutoBuildPostLoad then
-        if type(getgenv().AutoBuildPostLoad) == "function" then
-            task.spawn(function()
-                local ok, err = pcall(getgenv().AutoBuildPostLoad)
-                if not ok then warn("[AutoBuild] Error running post-equip function: " .. tostring(err)) end
-            end)
-        elseif type(getgenv().AutoBuildPostLoad) == "table" then
-            task.spawn(function()
-                for _, entry in ipairs(getgenv().AutoBuildPostLoad) do
-                    if type(entry) == "string" then
-                        local ok, err = pcall(function()
-                            warn("[AutoBuild] Loading post-equip script: " .. entry)
-                            loadstring(game:HttpGet(entry))()
-                        end)
-                        if not ok then warn("[AutoBuild] Error loading post-equip script: " .. tostring(err)) end
-                    elseif type(entry) == "function" then
-                        local ok, err = pcall(entry)
-                        if not ok then warn("[AutoBuild] Error running post-equip function: " .. tostring(err)) end
-                    end
-                end
-            end)
-        end
-    else
-        print("[AutoBuild] No post-equip scripts defined.")
-    end
-
+    runPostLoad()
 end
 
 task.spawn(function()
