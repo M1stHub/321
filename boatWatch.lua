@@ -2,8 +2,10 @@ local Players           = game:GetService("Players")
 local CollectionService = game:GetService("CollectionService")
 local LocalPlayer       = Players.LocalPlayer
 
-local WHITELIST = {}
-if WHITELIST[LocalPlayer.UserId] then return end
+local function isWhitelisted()
+    local v = getgenv().resetWhitelist
+    return v == LocalPlayer.UserId or v == tostring(LocalPlayer.UserId)
+end
 
 local function getBoat()
     local boats = workspace:FindFirstChild("Boats")
@@ -50,14 +52,18 @@ task.spawn(function()
         while not getBoat() do
             task.wait(1)
         end
-        local char = LocalPlayer.Character
-        local hum = char and char:FindFirstChildWhichIsA("Humanoid")
-        if hum and hum.Health > 0 then
-            hum.Health = 0
+
+        if not isWhitelisted() then
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildWhichIsA("Humanoid")
+            if hum and hum.Health > 0 then
+                hum.Health = 0
+            end
+            LocalPlayer.CharacterAdded:Wait()
+            task.wait(1)
+            tryBoatCastleTeleport()
         end
-        LocalPlayer.CharacterAdded:Wait()
-        task.wait(1)
-        tryBoatCastleTeleport()
+
         while getBoat() do
             task.wait(1)
         end
