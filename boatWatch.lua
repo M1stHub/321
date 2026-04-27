@@ -1,48 +1,65 @@
-local Players     = game:GetService("Players")
-local RunService  = game:GetService("RunService")
-local LocalPlayer = Players.LocalPlayer
+local Players           = game:GetService("Players")
+local CollectionService = game:GetService("CollectionService")
+local LocalPlayer       = Players.LocalPlayer
 
-local TIKI_MIN = Vector3.new(-15982, 9, 699)
-local TIKI_MAX = Vector3.new(-16353, 347, 8)
-
-local FOLDER_NAME = "__BoatGuardViz"
-local old = workspace:FindFirstChild(FOLDER_NAME)
-if old then old:Destroy() end
-
-local function isInTikiXZ(pos)
-    return pos.X >= math.min(TIKI_MIN.X, TIKI_MAX.X) and pos.X <= math.max(TIKI_MIN.X, TIKI_MAX.X)
-       and pos.Z >= math.min(TIKI_MIN.Z, TIKI_MAX.Z) and pos.Z <= math.max(TIKI_MIN.Z, TIKI_MAX.Z)
-end
+local WHITELIST = {}
+if WHITELIST[LocalPlayer.UserId] then return end
 
 local function getBoat()
     local boats = workspace:FindFirstChild("Boats")
     return boats and boats:FindFirstChild("Beast Hunter")
 end
 
-local lastKill = 0
-local KILL_COOLDOWN = 3
+local function isInModelBounds(pos, model)
+    local ok, boundCF, boundSize = pcall(function() return model:GetBoundingBox() end)
+    if not ok then return false end
+    local localPos = boundCF:PointToObjectSpace(pos)
+    local half = boundSize / 2
+    return math.abs(localPos.X) <= half.X
+       and math.abs(localPos.Y) <= half.Y
+       and math.abs(localPos.Z) <= half.Z
+end
 
-RunService.Heartbeat:Connect(function()
-    local now = tick()
+local function isInBoatCastle(pos)
+    local map = workspace:FindFirstChild("Map")
+    local castle = map and map:FindFirstChild("Boat Castle")
+    if not castle then return false end
+    return isInModelBounds(pos, castle)
+end
 
-    local boat = getBoat()
-    if not boat then return end
+local function tryBoatCastleTeleport()
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local hrp = char:WaitForChild("HumanoidRootPart", 10)
+    if not hrp then return end
+    if not isInBoatCastle(hrp.Position) then return end
 
-    local seat = boat:FindFirstChild("VehicleSeat", true)
-    if not seat or not seat:FindFirstChild("SeatWeld") then return end
+    local rf = game:GetService("ReplicatedStorage")
+        :WaitForChild("Modules")
+        :WaitForChild("Net")
+        :WaitForChild("RF/BoatCastleTeleporters")
 
-    local primary = boat.PrimaryPart or boat:FindFirstChildWhichIsA("BasePart")
-    if not primary or not isInTikiXZ(primary.Position) then return end
+    pcall(function()
+        local boat = CollectionService:GetTagged("BoatCastleTeleporter")[1]
+        if not boat then return end
+        rf:InvokeServer("InitiateTeleport", boat)
+    end)
+end
 
-    local localChar = LocalPlayer.Character
-    local localRoot = localChar and (localChar:FindFirstChild("HumanoidRootPart") or localChar.PrimaryPart)
-    if localRoot and isInTikiXZ(localRoot.Position) then return end
-
-    if (now - lastKill) >= KILL_COOLDOWN then
-        lastKill = now
-        local hum = localChar and localChar:FindFirstChildWhichIsA("Humanoid")
+task.spawn(function()
+    while true do
+        while not getBoat() do
+            task.wait(1)
+        end
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildWhichIsA("Humanoid")
         if hum and hum.Health > 0 then
             hum.Health = 0
+        end
+        LocalPlayer.CharacterAdded:Wait()
+        task.wait(1)
+        tryBoatCastleTeleport()
+        while getBoat() do
+            task.wait(1)
         end
     end
 end)
