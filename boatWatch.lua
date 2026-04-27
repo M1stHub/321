@@ -7,11 +7,6 @@ local function isWhitelisted()
     return v == LocalPlayer.UserId or v == tostring(LocalPlayer.UserId)
 end
 
-local function getBoat()
-    local boats = workspace:FindFirstChild("Boats")
-    return boats and boats:FindFirstChild("Beast Hunter")
-end
-
 local function isInModelBounds(pos, model)
     local ok, boundCF, boundSize = pcall(function() return model:GetBoundingBox() end)
     if not ok then return false end
@@ -47,25 +42,30 @@ local function tryBoatCastleTeleport()
     end)
 end
 
-task.spawn(function()
-    while true do
-        while not getBoat() do
-            task.wait(1)
-        end
+local function onBoatSpawned(child)
+    if child.Name ~= "Beast Hunter" then return end
+    if isWhitelisted() then return end
 
-        if not isWhitelisted() then
-            local char = LocalPlayer.Character
-            local hum = char and char:FindFirstChildWhichIsA("Humanoid")
-            if hum and hum.Health > 0 then
-                hum.Health = 0
-            end
-            LocalPlayer.CharacterAdded:Wait()
-            task.wait(1)
-            tryBoatCastleTeleport()
+    task.spawn(function()
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildWhichIsA("Humanoid")
+        if hum and hum.Health > 0 then
+            hum.Health = 0
         end
+        LocalPlayer.CharacterAdded:Wait()
+        task.wait(1)
+        tryBoatCastleTeleport()
+    end)
+end
 
-        while getBoat() do
-            task.wait(1)
-        end
+local function watchBoats()
+    local boats = workspace:WaitForChild("Boats")
+
+    for _, child in ipairs(boats:GetChildren()) do
+        onBoatSpawned(child)
     end
-end)
+
+    boats.ChildAdded:Connect(onBoatSpawned)
+end
+
+task.spawn(watchBoats)
