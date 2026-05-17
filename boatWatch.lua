@@ -8,8 +8,12 @@ local TIKI_LO = Vector3.new(math.min(TIKI_P1.X, TIKI_P2.X), math.min(TIKI_P1.Y, 
 local TIKI_HI = Vector3.new(math.max(TIKI_P1.X, TIKI_P2.X), math.max(TIKI_P1.Y, TIKI_P2.Y), math.max(TIKI_P1.Z, TIKI_P2.Z))
 
 local function isWhitelisted()
-    local v = getgenv().resetWhitelist
-    return v == LocalPlayer.UserId or v == tostring(LocalPlayer.UserId)
+    local whitelist = getgenv().resetWhitelist
+    if not whitelist then return false end
+    if type(whitelist) == "table" then
+        return whitelist[LocalPlayer.UserId] == true or whitelist[tostring(LocalPlayer.UserId)] == true
+    end
+    return whitelist == LocalPlayer.UserId or whitelist == tostring(LocalPlayer.UserId)
 end
 
 local function isInModelBounds(pos, model)
