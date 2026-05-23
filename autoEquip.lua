@@ -323,9 +323,15 @@ local function applyLoadout()
 
     if getgenv().AutoLoadout.autoTravel then
         local placeId = game.PlaceId
-        if placeId == 7449423635 then
+        
+        if placeId == 7449423635 or placeId == 100117331123089 then
             warn("[AutoBuild] Already in Sea 3, proceeding with equip...")
-        elseif placeId == 4442272183 or placeId == 2753915549 then
+        
+        elseif placeId == 4442272183
+            or placeId == 79091703265657
+            or placeId == 2753915549
+            or placeId == 85211729168715 then
+        
             warn("[AutoBuild] In Sea 2 or Sea 1, traveling to Sea 3 first...")
             local statusFileName = LocalPlayer.Name .. "-autoBuild.json"
             writefile(statusFileName, '{"status": "traveled"}')
