@@ -34,10 +34,25 @@ local function formatFrags(frags)
 end
 
 pcall(function()
-    local p = Players.LocalPlayer
-    if not p then return end
-    p.CameraMaxZoomDistance = p.CameraMaxZoomDistance + 50
-    p.CameraMinZoomDistance = p.CameraMaxZoomDistance
+    local player = Players.LocalPlayer
+    if not player or player.UserId == getgenv().notiAcc then return end
+
+    player.CameraMinZoomDistance = 0
+    player.CameraMaxZoomDistance = 128
+
+    local currentCamera = workspace.CurrentCamera
+    if not currentCamera then return end
+
+    task.spawn(function()
+        for i = 1, 10 do
+            currentCamera.CameraType = Enum.CameraType.Custom
+            player.CameraMinZoomDistance = 0
+            task.wait(0.01)
+        end
+        player.CameraMaxZoomDistance = 0
+        task.wait(0.1)
+        player.CameraMaxZoomDistance = 128
+    end)
 end)
 
 local function ImGoated()
@@ -130,8 +145,8 @@ local function ImGoated()
             {name = "Mythical Scroll", value = tostring(tracker["Mythical Scroll"]), inline = true},
             {name = "Terror Eyes", value = tostring(tracker["Terror Eyes"]), inline = true},
             {name = "Fool's Gold", value = tostring(tracker["Fool's Gold"]), inline = true},
-            {name = "Mythical Fruits", value = "```\n" .. mythicalList .. "\n```", inline = false},
-            {name = "Legendary Fruits", value = "```\n" .. legendaryList .. "\n```", inline = false},
+            {name = "Mythical Fruits", value = "```\n" .. mythicalList .. "\n```", inline = true},
+            {name = "Legendary Fruits", value = "```\n" .. legendaryList .. "\n```", inline = true},
             {name = "Rings", value = "```\n" .. ringList .. "\n```", inline = false},
             {name = "", value = "||" .. (player.Name or "Unknown") .. "||", inline = false}
         }
