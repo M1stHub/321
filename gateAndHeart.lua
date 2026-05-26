@@ -65,7 +65,7 @@ task.spawn(function()
 
 		if doorLeft and not isGateDetected then
 			SendWebhook(
-				"<@409058235203584023> <@1218901676002381854>",
+				"a",
 				"Frozen Dimension Found",
 				255,
 				webhookUrl
