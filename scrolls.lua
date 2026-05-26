@@ -154,11 +154,11 @@ log("Checking scrolls...")
 while true do
 	local commonScrolls, rareScrolls, legendaryScrolls, mythicalScrolls = getScrollCounts()
 
-	if commonScrolls < 10 then
+	if commonScrolls < 11 then
 		craftScroll("Common", "CommonScroll", commonScrolls, commonMaterials)
-	elseif rareScrolls < 10 then
+	elseif rareScrolls < 11 then
 		craftScroll("Rare", "RareScroll", rareScrolls, rareMaterials)
-	elseif legendaryScrolls < 10 then
+	elseif legendaryScrolls < 11 then
 		craftScroll("Legendary", "LegendaryScroll", legendaryScrolls, legendaryMaterials)
 	elseif mythicalScrolls < 10 then
 		craftScroll("Mythical", "MythicalScroll", mythicalScrolls, mythicalMaterials)
