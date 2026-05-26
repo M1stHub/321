@@ -1,593 +1,610 @@
 repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer
 
-  task.spawn(function()
-      local plr = game.Players.LocalPlayer
-      local Remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
-      local tries = 0
-      while not plr.Team and tries < 10 do
-          local ok, err = pcall(function()
-              Remotes.CommF_:InvokeServer("SetTeam", "Marines")
-          end)
-          tries = tries + 1
-          task.wait(1)
-      end
-      if plr.Team and plr.Team.Name == "Marines" then
-          warn("[AutoBuild] Successfully joined Marines team!")
-      else
-          warn("[AutoBuild] Failed to join Marines team after " .. tries .. " tries.")
-      end
-  end)
+-- Makes the account join Marines first, so later travel/equip calls are done
+-- after the player has a team.
+task.spawn(function()
+    local plr = game.Players.LocalPlayer
+    local Remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
+    local tries = 0
+    while not plr.Team and tries < 10 do
+        local ok, err = pcall(function()
+            Remotes.CommF_:InvokeServer("SetTeam", "Marines")
+        end)
+        tries = tries + 1
+        task.wait(1)
+    end
+    if plr.Team and plr.Team.Name == "Marines" then
+        warn("[AutoBuild] Successfully joined Marines team!")
+    else
+        warn("[AutoBuild] Failed to join Marines team after " .. tries .. " tries.")
+    end
+end)
 
-  local HttpService = game:GetService("HttpService")
-  local ReplicatedStorage = game:GetService("ReplicatedStorage")
-  local Players = game:GetService("Players")
-  local LocalPlayer = Players.LocalPlayer
-  local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
 
-  local function getFruitFailedFile()
-      return LocalPlayer.Name .. "-fruitFailed.json"
-  end
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local THIRD_SEA_PLACE_ID = 7449423635
 
-  local function loadFailedFruits()
-      local fname = getFruitFailedFile()
-      if isfile(fname) then
-          local ok, data = pcall(HttpService.JSONDecode, HttpService, readfile(fname))
-          if ok and type(data) == "table" then return data end
-      end
-      return {}
-  end
+local function kickPlayer()
+    warn("[AutoBuild] Kicking player to clear PS bug...")
+    game.Players:FindFirstChild(LocalPlayer.Name):Kick("[AutoBuild] Clearing PS bug")
+end
 
-  local function markFruitFailed(fruitName)
-      local fname = getFruitFailedFile()
-      local failed = loadFailedFruits()
-      failed[fruitName] = true
-      writefile(fname, HttpService:JSONEncode(failed))
-      warn("[AutoBuild] Marked fruit as unavailable: " .. fruitName)
-  end
+local function getStatusFileName()
+    return LocalPlayer.Name .. "-autoBuild.json"
+end
 
-  local function kickPlayer()
-      warn("[AutoBuild] Kicking player to clear PS bug...")
-      game.Players:FindFirstChild(LocalPlayer.Name):Kick("[AutoBuild] Clearing PS bug")
-  end
+local function writeTravelStatus(fromPlaceId)
+    writefile(getStatusFileName(), HttpService:JSONEncode({
+        status = "traveled",
+        autoBuildTravel = true,
+        userId = LocalPlayer.UserId,
+        fromPlaceId = fromPlaceId,
+        targetPlaceId = THIRD_SEA_PLACE_ID,
+        createdAt = os.time()
+    }))
+end
 
-  getgenv().AutoLoadout = getgenv().AutoLoadout or {
-      race = { "Fishman" },
-      fightingStyles = { "Sharkman Karate", "Sanguine Art" },
-      sword = { "Dragonheart", "True Triple Katana" },
-      gun = { "Skull Guitar", "Venom Bow" },
-      fruit = { "Lightning-Lightning", "Sound-Sound" },
-      wear = { "Leviathan Shield", "Swan Glasses" },
-      autoEquip = true,
-      autoTravel = true
-  }
+local function readTravelStatus()
+    local statusFileName = getStatusFileName()
+    if not isfile(statusFileName) then return nil end
 
-  local FightingStyleLocations = {
-      ["Sanguine Art"] = CFrame.new(-16515, 23, -192),
-      ["Fishman Karate"] = CFrame.new(-4984, 315, -3208),
-      ["Superhuman"] = CFrame.new(-4984, 315, -3208),
-      ["Death Step"] = CFrame.new(-4984, 315, -3208),
-      ["Sharkman Karate"] = CFrame.new(-4984, 315, -3208),
-      ["Electric Claw"] = CFrame.new(-10373, 332, -10130),
-      ["Dragon Talon"] = CFrame.new(5664, 1211, 865),
-      ["Godhuman"] = CFrame.new(-13772, 335, -9878)
-  }
+    local rawStatus = readfile(statusFileName)
+    warn("[AutoBuild] Status file found: " .. rawStatus)
 
-  local FightingStyleBuyRemotes = {
-      ["Sanguine Art"] = "BuySanguineArt",
-      ["Fishman Karate"] = "BuyFishmanKarate",
-      ["Superhuman"] = "BuySuperhuman",
-      ["Death Step"] = "BuyDeathStep",
-      ["Sharkman Karate"] = "BuySharkmanKarate",
-      ["Electric Claw"] = "BuyElectricClaw",
-      ["Dragon Talon"] = "BuyDragonTalon",
-      ["Godhuman"] = "BuyGodhuman"
-  }
+    local ok, data = pcall(function()
+        return HttpService:JSONDecode(rawStatus)
+    end)
+    if not ok or type(data) ~= "table" then
+        return nil, statusFileName
+    end
 
-  local NoClipConnection
-  local BodyVelocity
+    if data.status == "traveled"
+        and data.autoBuildTravel == true
+        and data.userId == LocalPlayer.UserId
+        and data.targetPlaceId == THIRD_SEA_PLACE_ID
+    then
+        return data, statusFileName
+    end
 
-  local function StopTween()
-      if NoClipConnection then
-          NoClipConnection:Disconnect()
-          NoClipConnection = nil
-      end
-      if BodyVelocity then
-          BodyVelocity:Destroy()
-          BodyVelocity = nil
-      end
-      local char = LocalPlayer.Character
-      if char then
-          for _, part in pairs(char:GetDescendants()) do
-              if part:IsA("BasePart") then
-                  part.CanCollide = true
-                  part.CanTouch = true
-              end
-          end
-      end
-  end
+    return nil, statusFileName
+end
 
-  local function TweenTo(targetCFrame)
-      local char = LocalPlayer.Character
-      if not char then return end
-      local rootPart = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("UpperTorso")
-      if not rootPart then return end
-      StopTween()
-      task.wait(0.1)
-      local targetPos = targetCFrame.Position
-      BodyVelocity = Instance.new("BodyVelocity")
-      BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-      BodyVelocity.P = 1e5
-      BodyVelocity.Velocity = Vector3.zero
-      BodyVelocity.Parent = rootPart
-      NoClipConnection = RunService.Stepped:Connect(function()
-          if not char or not char.Parent then
-              StopTween()
-              return
-          end
-          for _, part in pairs(char:GetDescendants()) do
-              if part:IsA("BasePart") then
-                  part.CanCollide = false
-                  part.CanTouch = false
-              end
-          end
-          local dist = (rootPart.Position - targetPos).Magnitude
-          if dist <= 8 then
-              BodyVelocity.Velocity = Vector3.zero
-              StopTween()
-          else
-              BodyVelocity.Velocity = (targetPos - rootPart.Position).Unit * 300
-          end
-      end)
-  end
+-- This is the list of acceptable gear/race choices. The script tries the first
+-- useful option in each list and skips options it cannot get.
+getgenv().AutoLoadout = getgenv().AutoLoadout or {
+    race = { "Fishman" },
+    fightingStyles = { "Sharkman Karate", "Sanguine Art" },
+    sword = { "Dragonheart", "True Triple Katana" },
+    gun = { "Skull Guitar", "Venom Bow" },
+    fruit = { "Lightning-Lightning", "Sound-Sound" },
+    wear = { "Leviathan Shield", "Swan Glasses" },
+    autoEquip = true,
+    autoTravel = true
+}
 
-  local function WaitForTween()
-      while NoClipConnection and BodyVelocity do
-          task.wait(0.1)
-      end
-      task.wait(0.5)
-  end
+local FightingStyleLocations = {
+    ["Sanguine Art"] = CFrame.new(-16515, 23, -192),
+    ["Fishman Karate"] = CFrame.new(-4984, 315, -3208),
+    ["Superhuman"] = CFrame.new(-4984, 315, -3208),
+    ["Death Step"] = CFrame.new(-4984, 315, -3208),
+    ["Sharkman Karate"] = CFrame.new(-4984, 315, -3208),
+    ["Electric Claw"] = CFrame.new(-10373, 332, -10130),
+    ["Dragon Talon"] = CFrame.new(5664, 1211, 865),
+    ["Godhuman"] = CFrame.new(-13772, 335, -9878)
+}
 
-  local function getEquippedItems()
-      local args = { "getInventory" }
-      local inventory = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer(unpack(args))
-      if type(inventory) ~= "table" then
-          warn("[AutoBuild] Inventory data is not a table! Got: " .. tostring(inventory))
-          inventory = {}
-      end
+local FightingStyleBuyRemotes = {
+    ["Sanguine Art"] = "BuySanguineArt",
+    ["Fishman Karate"] = "BuyFishmanKarate",
+    ["Superhuman"] = "BuySuperhuman",
+    ["Death Step"] = "BuyDeathStep",
+    ["Sharkman Karate"] = "BuySharkmanKarate",
+    ["Electric Claw"] = "BuyElectricClaw",
+    ["Dragon Talon"] = "BuyDragonTalon",
+    ["Godhuman"] = "BuyGodhuman"
+}
 
-      local equippedSword = "None"
-      local equippedGun = "None"
-      local equippedFruit = "None"
-      local equippedWear = "None"
-      local equippedFightingStyle = "None"
-      local wearUIDs = {}
-      local ownedSwords = {}
-      local ownedGuns = {}
-      local ownedFruits = {}
+local NoClipConnection
+local BodyVelocity
 
-      local playerData = LocalPlayer:FindFirstChild("Data")
-      if playerData then
-          local devilFruit = playerData:FindFirstChild("DevilFruit")
-          if devilFruit and devilFruit.Value ~= "" then
-              equippedFruit = devilFruit.Value
-          end
-      end
+-- Stops custom movement and restores normal collision after tweening somewhere.
+local function StopTween()
+    if NoClipConnection then
+        NoClipConnection:Disconnect()
+        NoClipConnection = nil
+    end
+    if BodyVelocity then
+        BodyVelocity:Destroy()
+        BodyVelocity = nil
+    end
 
-      local backpack = LocalPlayer:FindFirstChild("Backpack")
-      if backpack then
-          for _, tool in pairs(backpack:GetChildren()) do
-              if tool:IsA("Tool") then
-                  for styleName, _ in pairs(FightingStyleBuyRemotes) do
-                      if tool.Name == styleName then
-                          equippedFightingStyle = styleName
-                          break
-                      end
-                  end
-              end
-          end
-      end
+    local char = LocalPlayer.Character
+    if char then
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = true
+                part.CanTouch = true
+            end
+        end
+    end
+end
 
-      for _, item in pairs(inventory) do
-          if type(item) == "table" then
-              if item.Type == "Sword" and item.Name then
-                  ownedSwords[item.Name] = true
-                  if item.Equipped == true then
-                      equippedSword = item.Name
-                  end
-              elseif item.Type == "Gun" and item.Name then
-                  ownedGuns[item.Name] = true
-                  if item.Equipped == true then
-                      equippedGun = item.Name
-                  end
-              elseif item.Type == "Blox Fruit" and item.Name then
-                  ownedFruits[item.Name] = true
-              elseif item.Type == "Wear" and item.Name and item.NetworkedUID then
-                  wearUIDs[item.Name] = item.NetworkedUID
-                  if item.Equipped == true and not string.find(item.Name, "Ring of") then
-                      if equippedWear == "None" then
-                          equippedWear = item.Name
-                      else
-                          equippedWear = equippedWear .. ", " .. item.Name
-                      end
-                  end
-              end
-          end
-      end
+-- Moves the character toward an NPC or target position while noclipping.
+local function TweenTo(targetCFrame)
+    local char = LocalPlayer.Character
+    if not char then return end
 
-      return equippedSword, equippedGun, equippedFruit, equippedWear, equippedFightingStyle, wearUIDs, ownedSwords,
-  ownedGuns, ownedFruits
-  end
+    local rootPart = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("UpperTorso")
+    if not rootPart then return end
 
-  local function getRace()
-      local playerData = LocalPlayer:FindFirstChild("Data")
-      if playerData then
-          local raceValue = playerData:FindFirstChild("Race")
-          if raceValue then
-              return raceValue.Value
-          end
-      end
-      return "Human"
-  end
+    StopTween()
+    task.wait(0.1)
 
-  local function rerollRace()
-      warn("[AutoBuild] Rolling for new race...")
-      local Event = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
-      local Result = Event:InvokeServer("BlackbeardReward", "Reroll", "2")
-      warn("[AutoBuild] Reroll result: " .. tostring(Result))
-      task.wait(1)
-      return getRace()
-  end
+    local targetPos = targetCFrame.Position
 
-  local function buyFightingStyle(styleName)
-      local remote = FightingStyleBuyRemotes[styleName]
-      if not remote then
-          warn("[AutoBuild] Unknown fighting style: " .. styleName)
-          return false
-      end
-      warn("[AutoBuild] Tweening to " .. styleName .. " NPC...")
-      local location = FightingStyleLocations[styleName]
-      TweenTo(location)
-      WaitForTween()
-      warn("[AutoBuild] Buying fighting style: " .. styleName)
-      local Event = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
-      local Result = Event:InvokeServer(remote)
-      task.wait(1)
-      warn("[AutoBuild] Buy result for " .. styleName .. ": " .. tostring(Result))
-      if Result == 0 then
-          warn("[AutoBuild] Failed to buy " .. styleName .. ", moving to next...")
-          return false
-      else
-          warn("[AutoBuild] Successfully obtained " .. styleName)
-          return true
-      end
-  end
+    BodyVelocity = Instance.new("BodyVelocity")
+    BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    BodyVelocity.P = 1e5
+    BodyVelocity.Velocity = Vector3.zero
+    BodyVelocity.Parent = rootPart
 
-  local function isLoadoutGood()
-      local config = getgenv().AutoLoadout
-      local currentSword, currentGun, currentFruit, currentWear, currentFightingStyle = getEquippedItems()
-      local currentRace = getRace()
-      local failedFruits = loadFailedFruits()
+    NoClipConnection = RunService.Stepped:Connect(function()
+        if not char or not char.Parent then
+            StopTween()
+            return
+        end
 
-      local function matchesAny(current, list)
-          list = type(list) == "table" and list or {list}
-          for _, v in ipairs(list) do
-              if v ~= "" and current == v then return true end
-          end
-          return false
-      end
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+                part.CanTouch = false
+            end
+        end
 
-      if not matchesAny(currentRace, config.race) then return false end
-      if not matchesAny(currentFightingStyle, config.fightingStyles) then return false end
-      if not matchesAny(currentSword, config.sword) then return false end
-      if not matchesAny(currentGun, config.gun) then return false end
+        local dist = (rootPart.Position - targetPos).Magnitude
+        if dist <= 8 then
+            BodyVelocity.Velocity = Vector3.zero
+            StopTween()
+        else
+            BodyVelocity.Velocity = (targetPos - rootPart.Position).Unit * 300
+        end
+    end)
+end
 
-      if not matchesAny(currentFruit, config.fruit) then
-          local fruits = type(config.fruit) == "table" and config.fruit or {config.fruit}
-          local allFailed = true
-          for _, fruit in ipairs(fruits) do
-              if fruit ~= "" and not failedFruits[fruit] then
-                  allFailed = false
-                  break
-              end
-          end
-          if not allFailed then return false end
-          warn("[AutoBuild] Fruit unavailable but all options marked failed — treating loadout as complete.")
-      end
+-- Waits until the custom movement above has finished before doing the next step.
+local function WaitForTween()
+    while NoClipConnection and BodyVelocity do
+        task.wait(0.1)
+    end
+    task.wait(0.5)
+end
 
-      local wears = type(config.wear) == "table" and config.wear or {config.wear}
-      for _, wear in ipairs(wears) do
-          if wear ~= "" and string.find(currentWear, wear, 1, true) then return true end
-      end
-      return false
-  end
+-- Checks inventory and character data to figure out what is equipped and owned.
+local function getEquippedItems()
+    local args = { "getInventory" }
+    local inventory = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer(unpack(args))
+    if type(inventory) ~= "table" then
+        warn("[AutoBuild] Inventory data is not a table! Got: " .. tostring(inventory))
+        inventory = {}
+    end
 
-  local function runPostLoad()
-      if getgenv().AutoBuildPostLoad then
-          if type(getgenv().AutoBuildPostLoad) == "function" then
-              task.spawn(function()
-                  local ok, err = pcall(getgenv().AutoBuildPostLoad)
-                  if not ok then warn("[AutoBuild] Error running post-equip function: " .. tostring(err)) end
-              end)
-          elseif type(getgenv().AutoBuildPostLoad) == "table" then
-              task.spawn(function()
-                  for _, entry in ipairs(getgenv().AutoBuildPostLoad) do
-                      if type(entry) == "string" then
-                          local ok, err = pcall(function()
-                              warn("[AutoBuild] Loading post-equip script: " .. entry)
-                              loadstring(game:HttpGet(entry))()
-                          end)
-                          if not ok then warn("[AutoBuild] Error loading post-equip script: " .. tostring(err)) end
-                      elseif type(entry) == "function" then
-                          local ok, err = pcall(entry)
-                          if not ok then warn("[AutoBuild] Error running post-equip function: " .. tostring(err)) end
-                      end
-                  end
-              end)
-          end
-      else
-          print("[AutoBuild] No post-equip scripts defined.")
-      end
-  end
+    local equippedSword = "None"
+    local equippedGun = "None"
+    local equippedFruit = "None"
+    local equippedWear = "None"
+    local equippedFightingStyle = "None"
+    local wearUIDs = {}
+    local ownedSwords = {}
+    local ownedGuns = {}
+    local ownedFruits = {}
 
-  local function applyLoadout()
-      if not getgenv().AutoLoadout.autoEquip then
-          return
-      end
-      warn("[AutoBuild] Checking loadout...")
+    local playerData = LocalPlayer:FindFirstChild("Data")
+    if playerData then
+        local devilFruit = playerData:FindFirstChild("DevilFruit")
+        if devilFruit and devilFruit.Value ~= "" then
+            equippedFruit = devilFruit.Value
+        end
+    end
 
-      if isLoadoutGood() then
-          warn("[AutoBuild] Loadout already correct, skipping equip and running post-load.")
-          runPostLoad()
-          return
-      end
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if backpack then
+        for _, tool in pairs(backpack:GetChildren()) do
+            if tool:IsA("Tool") then
+                for styleName, _ in pairs(FightingStyleBuyRemotes) do
+                    if tool.Name == styleName then
+                        equippedFightingStyle = styleName
+                        break
+                    end
+                end
+            end
+        end
+    end
 
-      if getgenv().AutoLoadout.autoTravel then
-          local placeId = game.PlaceId
-          if placeId == 7449423635 or placeId == 100117331123089 then
-              warn("[AutoBuild] Already in Sea 3, proceeding with equip...")
-          elseif placeId == 4442272183
-              or placeId == 79091703265657
-              or placeId == 2753915549
-              or placeId == 85211729168715 then
-              warn("[AutoBuild] In Sea 2 or Sea 1, traveling to Sea 3 first...")
-              local statusFileName = LocalPlayer.Name .. "-autoBuild.json"
-              writefile(statusFileName, '{"status": "traveled"}')
-              ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer("TravelZou")
-              task.wait(2)
-              kickPlayer()
-              return
-          else
-              warn("[AutoBuild] Unknown PlaceId: " .. placeId .. ")")
-              return
-          end
-      end
+    for _, item in pairs(inventory) do
+        if type(item) == "table" then
+            if item.Type == "Sword" and item.Name then
+                ownedSwords[item.Name] = true
+                if item.Equipped == true then
+                    equippedSword = item.Name
+                end
+            elseif item.Type == "Gun" and item.Name then
+                ownedGuns[item.Name] = true
+                if item.Equipped == true then
+                    equippedGun = item.Name
+                end
+            elseif item.Type == "Blox Fruit" and item.Name then
+                ownedFruits[item.Name] = true
+            elseif item.Type == "Wear" and item.Name and item.NetworkedUID then
+                wearUIDs[item.Name] = item.NetworkedUID
+                if item.Equipped == true and not string.find(item.Name, "Ring of") then
+                    if equippedWear == "None" then
+                        equippedWear = item.Name
+                    else
+                        equippedWear = equippedWear .. ", " .. item.Name
+                    end
+                end
+            end
+        end
+    end
 
-      local equipData = {}
-      local currentSword, currentGun, currentFruit, currentWear, currentFightingStyle, wearUIDs, ownedSwords, ownedGuns,
-   ownedFruits = getEquippedItems()
-      local config = getgenv().AutoLoadout
+    return equippedSword, equippedGun, equippedFruit, equippedWear, equippedFightingStyle, wearUIDs, ownedSwords, ownedGuns, ownedFruits
+end
 
-      warn("Current: Sword=" .. currentSword .. " | Gun=" .. currentGun .. " | Fruit=" .. currentFruit .. " | Wear=" ..
-  currentWear .. " | FightingStyle=" .. currentFightingStyle)
+-- Reads the current race from player data. Human is used as a fallback if the
+-- race value is missing.
+local function getRace()
+    local playerData = LocalPlayer:FindFirstChild("Data")
+    if playerData then
+        local raceValue = playerData:FindFirstChild("Race")
+        if raceValue then
+            return raceValue.Value
+        end
+    end
+    return "Human"
+end
 
-      warn("[AutoBuild] Checking race...")
-      local currentRace = getRace()
-      local desiredRaces = type(config.race) == "table" and config.race or {config.race}
-      warn("[AutoBuild] Desired races: " .. table.concat(desiredRaces, ", "))
+-- Uses the race reroll remote, then reads the new race afterward.
+local function rerollRace()
+    warn("[AutoBuild] Rolling for new race...")
+    local Event = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
+    local Result = Event:InvokeServer("BlackbeardReward", "Reroll", "2")
+    warn("[AutoBuild] Reroll result: " .. tostring(Result))
+    task.wait(1)
+    return getRace()
+end
 
-      local raceMatches = false
-      while not raceMatches do
-          raceMatches = false
-          for _, race in ipairs(desiredRaces) do
-              if currentRace == race then
-                  raceMatches = true
-                  break
-              end
-          end
-          if not raceMatches then
-              local fragmentsValue = LocalPlayer:FindFirstChild("Data") and LocalPlayer.Data:FindFirstChild("Fragments")
-              local fragments = fragmentsValue and fragmentsValue.Value or 0
-              if fragments < 3000 then
-                  warn("[AutoBuild] Skipping reroll — Fragments too low: " .. fragments .. " / 3000")
-                  break
-              end
-              warn("[AutoBuild] Current race: " .. currentRace .. " - does not match desired. Rerolling...")
-              currentRace = rerollRace()
-              warn("[AutoBuild] New race after reroll: " .. currentRace)
-          else
-              warn("[AutoBuild] Successfully got desired race: " .. currentRace)
-              break
-          end
-      end
+-- Travels to the fighting-style NPC and tries to buy the style from the server.
+local function buyFightingStyle(styleName)
+    local remote = FightingStyleBuyRemotes[styleName]
+    if not remote then
+        warn("[AutoBuild] Unknown fighting style: " .. styleName)
+        return false
+    end
 
-      warn("[AutoBuild] Checking fighting styles...")
-      local fightingStyles = type(config.fightingStyles) == "table" and config.fightingStyles or {config.fightingStyles}
-      local foundOwned = false
-      equipData = {}
-      currentSword, currentGun, currentFruit, currentWear, currentFightingStyle, wearUIDs, ownedSwords, ownedGuns,
-  ownedFruits = getEquippedItems()
-      for _, style in ipairs(fightingStyles) do
-          if style ~= "" then
-              local fsResult = equipData[style]
-              if fsResult == 2 or fsResult == 1 then
-                  if currentFightingStyle ~= style then
-                      warn("[AutoBuild] Equipping owned fighting style: " .. style)
-                      buyFightingStyle(style)
-                      task.wait(0.5)
-                      equipData = {}
-                      currentSword, currentGun, currentFruit, currentWear, currentFightingStyle, wearUIDs, ownedSwords,
-  ownedGuns, ownedFruits = getEquippedItems()
-                  else
-                      warn("[AutoBuild] Fighting style already equipped: " .. style)
-                  end
-                  equipData[style] = 2
-                  foundOwned = true
-                  break
-              elseif fsResult == 0 then
-                  warn("[AutoBuild] Skipping " .. style .. " (previously failed to obtain)")
-              else
-                  warn("[AutoBuild] Attempting to buy fighting style: " .. style)
-                  local result = buyFightingStyle(style) and 1 or 0
-                  equipData[style] = result
-                  equipData = {}
-                  currentSword, currentGun, currentFruit, currentWear, currentFightingStyle, wearUIDs, ownedSwords,
-  ownedGuns, ownedFruits = getEquippedItems()
-                  if result == 1 or result == 2 then
-                      foundOwned = true
-                      break
-                  end
-              end
-          end
-      end
-      if not foundOwned then
-          warn("[AutoBuild] No fighting style could be equipped or bought from config.")
-      end
+    warn("[AutoBuild] Tweening to " .. styleName .. " NPC...")
+    local location = FightingStyleLocations[styleName]
+    TweenTo(location)
+    WaitForTween()
 
-      local fruitsData = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer("GetFruits",
-  false)
-      local permanentFruits = {}
-      if type(fruitsData) == "table" then
-          for _, fruit in ipairs(fruitsData) do
-              if type(fruit) == "table" and fruit.HasPermanent and fruit.Name then
-                  permanentFruits[fruit.Name] = true
-              end
-          end
-      end
+    warn("[AutoBuild] Buying fighting style: " .. styleName)
+    local Event = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
+    local Result = Event:InvokeServer(remote)
+    task.wait(1)
 
-      local fruitToEquip = nil
-      for _, fruit in ipairs(type(config.fruit) == "table" and config.fruit or {config.fruit}) do
-          if fruit ~= "" then
-              local fResult = equipData[fruit]
-              if fResult == 0 then
-                  warn("[AutoBuild] Skipping " .. fruit .. " (previously failed to obtain)")
-              elseif permanentFruits[fruit] then
-                  fruitToEquip = fruit
-                  break
-              end
-          end
-      end
+    warn("[AutoBuild] Buy result for " .. styleName .. ": " .. tostring(Result))
+    if Result == 0 then
+        warn("[AutoBuild] Failed to buy " .. styleName .. ", moving to next...")
+        return false
+    else
+        warn("[AutoBuild] Successfully obtained " .. styleName)
+        return true
+    end
+end
 
-      if fruitToEquip then
-          local failedFruits = loadFailedFruits()
-          if failedFruits[fruitToEquip] then
-              failedFruits[fruitToEquip] = nil
-              writefile(getFruitFailedFile(), HttpService:JSONEncode(failedFruits))
-              warn("[AutoBuild] " .. fruitToEquip .. " is now owned, cleared from failed list.")
-          end
-          if currentFruit == fruitToEquip then
-              equipData[fruitToEquip] = 2
-              warn("[AutoBuild] Fruit already equipped: " .. fruitToEquip)
-          else
-              warn("[AutoBuild] Equipping fruit: " .. fruitToEquip)
-              ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer("SwitchFruit", fruitToEquip)
-              task.wait(0.5)
-              equipData[fruitToEquip] = 1
-          end
-      else
-          warn("[AutoBuild] No permanent fruit found — marking all configured fruits as unavailable.")
-          local fruits = type(config.fruit) == "table" and config.fruit or {config.fruit}
-          for _, fruit in ipairs(fruits) do
-              if fruit ~= "" then markFruitFailed(fruit) end
-          end
-      end
 
-      local swords = type(config.sword) == "table" and config.sword or {config.sword}
-      for _, sword in ipairs(swords) do
-          if sword ~= "" then
-              local sResult = equipData[sword]
-              if sResult == 0 then
-                  warn("[AutoBuild] Skipping " .. sword .. " (previously failed to obtain)")
-              elseif sResult == 2 then
-                  warn("[AutoBuild] Skipping " .. sword .. " (already owned)")
-              elseif ownedSwords[sword] then
-                  if currentSword == sword then
-                      equipData[sword] = 2
-                      warn("[AutoBuild] Sword already equipped: " .. sword)
-                  else
-                      warn("[AutoBuild] Equipping sword: " .. sword)
-                      ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer("LoadItem", sword)
-                      task.wait(0.5)
-                      equipData[sword] = 1
-                  end
-                  break
-              else
-                  warn("[AutoBuild] Sword not found in inventory: " .. sword .. ", marking as failed.")
-                  equipData[sword] = 0
-              end
-          end
-      end
+-- Returns true when the current race, fighting style, fruit, sword, gun, and
+-- accessory match the requested loadout.
+local function isLoadoutGood()
+    local config = getgenv().AutoLoadout
+    local currentSword, currentGun, currentFruit, currentWear, currentFightingStyle, _, _, _, _ = getEquippedItems()
+    local currentRace = getRace()
 
-      local guns = type(config.gun) == "table" and config.gun or {config.gun}
-      for _, gun in ipairs(guns) do
-          if gun ~= "" then
-              local gResult = equipData[gun]
-              if gResult == 0 then
-                  warn("[AutoBuild] Skipping " .. gun .. " (previously failed to obtain)")
-              elseif gResult == 2 then
-                  warn("[AutoBuild] Skipping " .. gun .. " (already owned)")
-              elseif ownedGuns[gun] then
-                  if currentGun == gun then
-                      equipData[gun] = 2
-                      warn("[AutoBuild] Gun already equipped: " .. gun)
-                  else
-                      warn("[AutoBuild] Equipping gun: " .. gun)
-                      ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer("LoadItem", gun)
-                      task.wait(0.5)
-                      equipData[gun] = 1
-                  end
-                  break
-              else
-                  warn("[AutoBuild] Gun not found in inventory: " .. gun .. ", marking as failed.")
-                  equipData[gun] = 0
-              end
-          end
-      end
+    local function matchesAny(current, list)
+        list = type(list) == "table" and list or {list}
+        for _, v in ipairs(list) do
+            if v ~= "" and current == v then return true end
+        end
+        return false
+    end
 
-      local wears = type(config.wear) == "table" and config.wear or {config.wear}
-      for _, wear in ipairs(wears) do
-          if wear ~= "" then
-              local wResult = equipData[wear]
-              if wResult == 0 then
-                  warn("[AutoBuild] Skipping " .. wear .. " (previously failed to obtain)")
-              elseif wResult == 2 then
-                  warn("[AutoBuild] Skipping " .. wear .. " (already owned)")
-              elseif wearUIDs[wear] then
-                  if string.find(currentWear, wear) then
-                      equipData[wear] = 2
-                      warn("[AutoBuild] Wear already equipped: " .. wear)
-                  else
-                      warn("[AutoBuild] Equipping wear: " .. wear)
-                      ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer("LoadItem",
-  wearUIDs[wear])
-                      task.wait(0.5)
-                      equipData[wear] = 1
-                  end
-                  break
-              else
-                  warn("[AutoBuild] Wear not found in inventory: " .. wear .. ", marking as failed.")
-                  equipData[wear] = 0
-              end
-          end
-      end
+    if not matchesAny(currentRace, config.race) then return false end
+    if not matchesAny(currentFightingStyle, config.fightingStyles) then return false end
+    if not matchesAny(currentFruit, config.fruit) then return false end
+    if not matchesAny(currentSword, config.sword) then return false end
+    if not matchesAny(currentGun, config.gun) then return false end
 
-      warn("[AutoBuild] Loadout applied!")
-      runPostLoad()
-  end
+    local wears = type(config.wear) == "table" and config.wear or {config.wear}
+    for _, wear in ipairs(wears) do
+        if wear ~= "" then
+            if string.find(currentWear, wear, 1, true) then return true end
+        end
+    end
+    return false
+end
 
-  task.spawn(function()
-      warn("[AutoBuild] Script loaded. Checking status file...")
-      local statusFileName = LocalPlayer.Name .. "-autoBuild.json"
-      if isfile(statusFileName) then
-          local status = readfile(statusFileName)
-          warn("[AutoBuild] Status file found: " .. status)
-          if string.find(status, '"traveled"') then
-              warn("[AutoBuild] Previous travel detected, kicking player...")
-              delfile(statusFileName)
-              kickPlayer()
-              return
-          end
-      end
-      warn("[AutoBuild] Waiting 10 seconds before applying loadout...")
-      task.wait(10)
-      applyLoadout()
-  end)
+-- Runs extra scripts or functions after the account has the correct loadout.
+local function runPostLoad()
+    if getgenv().AutoBuildPostLoad then
+        if type(getgenv().AutoBuildPostLoad) == "function" then
+            task.spawn(function()
+                local ok, err = pcall(getgenv().AutoBuildPostLoad)
+                if not ok then warn("[AutoBuild] Error running post-equip function: " .. tostring(err)) end
+            end)
+        elseif type(getgenv().AutoBuildPostLoad) == "table" then
+            task.spawn(function()
+                for _, entry in ipairs(getgenv().AutoBuildPostLoad) do
+                    if type(entry) == "string" then
+                        local ok, err = pcall(function()
+                            warn("[AutoBuild] Loading post-equip script: " .. entry)
+                            loadstring(game:HttpGet(entry))()
+                        end)
+                        if not ok then warn("[AutoBuild] Error loading post-equip script: " .. tostring(err)) end
+                    elseif type(entry) == "function" then
+                        local ok, err = pcall(entry)
+                        if not ok then warn("[AutoBuild] Error running post-equip function: " .. tostring(err)) end
+                    end
+                end
+            end)
+        end
+    else
+        print("[AutoBuild] No post-equip scripts defined.")
+    end
+end
+
+-- Main build routine: travel to Sea 3 if needed, reroll/buy/equip missing
+-- pieces, then continue into the post-load action.
+local function applyLoadout()
+    if not getgenv().AutoLoadout.autoEquip then
+        return
+    end
+    warn("[AutoBuild] Checking loadout...")
+
+    if isLoadoutGood() then
+        warn("[AutoBuild] Loadout already correct, skipping equip and running post-load.")
+        runPostLoad()
+        return
+    end
+
+    if getgenv().AutoLoadout.autoTravel then
+        local placeId = game.PlaceId
+        if placeId == THIRD_SEA_PLACE_ID then
+            warn("[AutoBuild] Already in Sea 3, proceeding with equip...")
+        elseif placeId == 4442272183 or placeId == 2753915549 then
+            warn("[AutoBuild] In Sea 2 or Sea 1, traveling to Sea 3 first...")
+            writeTravelStatus(placeId)
+            ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer("TravelZou")
+            task.wait(2)
+            kickPlayer()
+            return
+        else
+            warn("[AutoBuild] Unknown PlaceId: " .. placeId .. ")")
+            return
+        end
+    end
+
+    local equipData = {}
+    local currentSword, currentGun, currentFruit, currentWear, currentFightingStyle, wearUIDs, ownedSwords, ownedGuns, ownedFruits = getEquippedItems()
+    local config = getgenv().AutoLoadout
+
+    warn("Current: Sword=" .. currentSword .. " | Gun=" .. currentGun .. " | Fruit=" .. currentFruit .. " | Wear=" .. currentWear .. " | FightingStyle=" .. currentFightingStyle)
+
+    warn("[AutoBuild] Checking race...")
+    local currentRace = getRace()
+    local desiredRaces = type(config.race) == "table" and config.race or {config.race}
+    warn("[AutoBuild] Desired races: " .. table.concat(desiredRaces, ", "))
+
+    local raceMatches = false
+    while not raceMatches do
+        local raceMatches = false
+        for _, race in ipairs(desiredRaces) do
+            if currentRace == race then
+                raceMatches = true
+                break
+            end
+        end
+
+        if not raceMatches then
+            local fragmentsValue = LocalPlayer:FindFirstChild("Data") and LocalPlayer.Data:FindFirstChild("Fragments")
+            local fragments = fragmentsValue and fragmentsValue.Value or 0
+            if fragments < 3000 then
+                warn("[AutoBuild] Skipping reroll — Fragments too low: " .. fragments .. " / 3000")
+                break
+            end
+            warn("[AutoBuild] Current race: " .. currentRace .. " - does not match desired. Rerolling...")
+            currentRace = rerollRace()
+            warn("[AutoBuild] New race after reroll: " .. currentRace)
+        else
+            warn("[AutoBuild] Successfully got desired race: " .. currentRace)
+            break
+        end
+    end
+
+    warn("[AutoBuild] Checking fighting styles...")
+    local fightingStyles = type(config.fightingStyles) == "table" and config.fightingStyles or {config.fightingStyles}
+    local foundOwned = false
+    equipData = {}
+    currentSword, currentGun, currentFruit, currentWear, currentFightingStyle, wearUIDs, ownedSwords, ownedGuns, ownedFruits = getEquippedItems()
+    for _, style in ipairs(fightingStyles) do
+        if style ~= "" then
+            local fsResult = equipData[style]
+            if fsResult == 2 or fsResult == 1 then
+                if currentFightingStyle ~= style then
+                    warn("[AutoBuild] Equipping owned fighting style: " .. style)
+                    buyFightingStyle(style)
+                    task.wait(0.5)
+                    equipData = {}
+                    currentSword, currentGun, currentFruit, currentWear, currentFightingStyle, wearUIDs, ownedSwords, ownedGuns, ownedFruits = getEquippedItems()
+                else
+                    warn("[AutoBuild] Fighting style already equipped: " .. style)
+                end
+                equipData[style] = 2
+                foundOwned = true
+                break
+            elseif fsResult == 0 then
+                warn("[AutoBuild] Skipping " .. style .. " (previously failed to obtain)")
+            else
+                warn("[AutoBuild] Attempting to buy fighting style: " .. style)
+                local result = buyFightingStyle(style) and 1 or 0
+                equipData[style] = result
+                equipData = {}
+                currentSword, currentGun, currentFruit, currentWear, currentFightingStyle, wearUIDs, ownedSwords, ownedGuns, ownedFruits = getEquippedItems()
+                if result == 1 or result == 2 then
+                    foundOwned = true
+                    break
+                end
+            end
+        end
+    end
+    if not foundOwned then
+        warn("[AutoBuild] No fighting style could be equipped or bought from config.")
+    end
+    local fruitsData = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer("GetFruits", false)
+    local permanentFruits = {}
+    if type(fruitsData) == "table" then
+        for _, fruit in ipairs(fruitsData) do
+            if type(fruit) == "table" and fruit.HasPermanent and fruit.Name then
+                permanentFruits[fruit.Name] = true
+            end
+        end
+    end
+    local fruitToEquip = nil
+    for _, fruit in ipairs(type(config.fruit)=="table" and config.fruit or {config.fruit}) do
+        if fruit ~= "" then
+            local fResult = equipData[fruit]
+            if fResult == 0 then
+                warn("[AutoBuild] Skipping " .. fruit .. " (previously failed to obtain)")
+            elseif permanentFruits[fruit] then
+                fruitToEquip = fruit
+                break
+            end
+        end
+    end
+    if fruitToEquip then
+        if currentFruit == fruitToEquip then
+            equipData[fruitToEquip] = 2
+            warn("[AutoBuild] Fruit already equipped: " .. fruitToEquip)
+        else
+            warn("[AutoBuild] Equipping fruit: " .. fruitToEquip)
+            ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer("SwitchFruit", fruitToEquip)
+            task.wait(0.5)
+            equipData[fruitToEquip] = 1
+        end
+    else
+        warn("[AutoBuild] No permanent fruit found or all skipped.")
+    end
+    local swords = type(config.sword) == "table" and config.sword or {config.sword}
+    for _, sword in ipairs(swords) do
+        if sword ~= "" then
+            local sResult = equipData[sword]
+            if sResult == 0 then
+                warn("[AutoBuild] Skipping " .. sword .. " (previously failed to obtain)")
+            elseif sResult == 2 then
+                warn("[AutoBuild] Skipping " .. sword .. " (already owned)")
+            elseif ownedSwords[sword] then
+                if currentSword == sword then
+                    equipData[sword] = 2
+                    warn("[AutoBuild] Sword already equipped: " .. sword)
+                else
+                    warn("[AutoBuild] Equipping sword: " .. sword)
+                    ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer("LoadItem", sword)
+                    task.wait(0.5)
+                    equipData[sword] = 1
+                end
+                break
+            else
+                warn("[AutoBuild] Sword not found in inventory: " .. sword .. ", marking as failed.")
+                equipData[sword] = 0
+            end
+        end
+    end
+    local guns = type(config.gun) == "table" and config.gun or {config.gun}
+    for _, gun in ipairs(guns) do
+        if gun ~= "" then
+            local gResult = equipData[gun]
+            if gResult == 0 then
+                warn("[AutoBuild] Skipping " .. gun .. " (previously failed to obtain)")
+            elseif gResult == 2 then
+                warn("[AutoBuild] Skipping " .. gun .. " (already owned)")
+            elseif ownedGuns[gun] then
+                if currentGun == gun then
+                    equipData[gun] = 2
+                    warn("[AutoBuild] Gun already equipped: " .. gun)
+                else
+                    warn("[AutoBuild] Equipping gun: " .. gun)
+                    ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer("LoadItem", gun)
+                    task.wait(0.5)
+                    equipData[gun] = 1
+                end
+                break
+            else
+                warn("[AutoBuild] Gun not found in inventory: " .. gun .. ", marking as failed.")
+                equipData[gun] = 0
+            end
+        end
+    end
+    local wears = type(config.wear) == "table" and config.wear or {config.wear}
+    for _, wear in ipairs(wears) do
+        if wear ~= "" then
+            local wResult = equipData[wear]
+            if wResult == 0 then
+                warn("[AutoBuild] Skipping " .. wear .. " (previously failed to obtain)")
+            elseif wResult == 2 then
+                warn("[AutoBuild] Skipping " .. wear .. " (already owned)")
+            elseif wearUIDs[wear] then
+                if string.find(currentWear, wear) then
+                    equipData[wear] = 2
+                    warn("[AutoBuild] Wear already equipped: " .. wear)
+                else
+                    warn("[AutoBuild] Equipping wear: " .. wear)
+                    ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer("LoadItem", wearUIDs[wear])
+                    task.wait(0.5)
+                    equipData[wear] = 1
+                end
+                break
+            else
+                warn("[AutoBuild] Wear not found in inventory: " .. wear .. ", marking as failed.")
+                equipData[wear] = 0
+
+            end
+        end
+    end
+
+    warn("[AutoBuild] Loadout applied!")
+    runPostLoad()
+end
+
+-- Startup check. If the last run forced travel, it kicks once to clear the
+-- transition state; otherwise it waits a bit and applies the loadout.
+task.spawn(function()
+    warn("[AutoBuild] Script loaded. Checking status file...")
+    local travelStatus, statusFileName = readTravelStatus()
+    if statusFileName then
+        delfile(statusFileName)
+        if travelStatus and game.PlaceId == THIRD_SEA_PLACE_ID then
+            warn("[AutoBuild] Previous Sea 3 travel detected, kicking player...")
+            kickPlayer()
+            return
+        elseif travelStatus then
+            warn("[AutoBuild] Travel status found outside Sea 3, continuing normally.")
+        else
+            warn("[AutoBuild] Ignoring old or unrelated travel status.")
+        end
+    end
+    warn("[AutoBuild] Waiting 10 seconds before applying loadout...")
+    task.wait(10)
+    applyLoadout()
+end)
