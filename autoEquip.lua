@@ -26,7 +26,16 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
-local THIRD_SEA_PLACE_ID = 7449423635
+local THIRD_SEA_PLACE_IDS = {
+    [7449423635] = true,
+    [100117331123089] = true,
+}
+local TRAVEL_TO_THIRD_SEA_PLACE_IDS = {
+    [4442272183] = true,
+    [79091703265657] = true,
+    [2753915549] = true,
+    [85211729168715] = true,
+}
 
 local function kickPlayer()
     warn("[AutoBuild] Kicking player to clear PS bug...")
@@ -43,9 +52,17 @@ local function writeTravelStatus(fromPlaceId)
         autoBuildTravel = true,
         userId = LocalPlayer.UserId,
         fromPlaceId = fromPlaceId,
-        targetPlaceId = THIRD_SEA_PLACE_ID,
+        targetSea = "ThirdSea",
         createdAt = os.time()
     }))
+end
+
+local function isThirdSea(placeId)
+    return THIRD_SEA_PLACE_IDS[placeId] == true
+end
+
+local function shouldTravelToThirdSea(placeId)
+    return TRAVEL_TO_THIRD_SEA_PLACE_IDS[placeId] == true
 end
 
 local function readTravelStatus()
@@ -65,7 +82,7 @@ local function readTravelStatus()
     if data.status == "traveled"
         and data.autoBuildTravel == true
         and data.userId == LocalPlayer.UserId
-        and data.targetPlaceId == THIRD_SEA_PLACE_ID
+        and data.targetSea == "ThirdSea"
     then
         return data, statusFileName
     end
@@ -381,9 +398,9 @@ local function applyLoadout()
 
     if getgenv().AutoLoadout.autoTravel then
         local placeId = game.PlaceId
-        if placeId == THIRD_SEA_PLACE_ID then
+        if isThirdSea(placeId) then
             warn("[AutoBuild] Already in Sea 3, proceeding with equip...")
-        elseif placeId == 4442272183 or placeId == 2753915549 then
+        elseif shouldTravelToThirdSea(placeId) then
             warn("[AutoBuild] In Sea 2 or Sea 1, traveling to Sea 3 first...")
             writeTravelStatus(placeId)
             ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer("TravelZou")
@@ -594,7 +611,7 @@ task.spawn(function()
     local travelStatus, statusFileName = readTravelStatus()
     if statusFileName then
         delfile(statusFileName)
-        if travelStatus and game.PlaceId == THIRD_SEA_PLACE_ID then
+        if travelStatus and isThirdSea(game.PlaceId) then
             warn("[AutoBuild] Previous Sea 3 travel detected, kicking player...")
             kickPlayer()
             return
