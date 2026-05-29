@@ -126,12 +126,13 @@ while true do
 
 	task.wait(1)
 
+	setNotificationFps(30)
+
 	if findInMap("FrozenHeart") then
 		SendWebhook(nil, "Got Heart",    0x00FF00, webhookUrl)
 	else
 		SendWebhook(nil, "Missed Heart", 0xFF0000, webhookUrl)
 	end
-	setNotificationFps(30)
 
 	task.wait(5)
 end
