@@ -39,6 +39,10 @@ local function findInMap(...)
 	return node
 end
 
+local function findInWorkspace(name)
+	return workspace:FindFirstChild(name, true)
+end
+
 if Players.LocalPlayer.UserId ~= getgenv().notiAcc then return end
 
 local function setFps(cap)
@@ -67,62 +71,53 @@ end)
 
 while true do
 	task.wait(1)
-	local heart, waited = nil, 0
-	while not heart and waited < 60 do
-		task.wait(1)
-		waited = waited + 1
-		heart = findInMap("FrozenHeart")
-	end
-	if not heart then continue end
+
+	if not findInWorkspace("FrozenHeart") then continue end
 
 	setFps(80)
 
 	local boat = workspace:FindFirstChild("Boats")
 		and workspace.Boats:FindFirstChild("Beast Hunter")
-	if not boat then
-		setNotificationFps(30)
-		continue
-	end
 
-	local seatUsed    = false
-	local connections = {}
+	if boat then
+		local seatUsed    = false
+		local connections = {}
 
-	for i, cannon in ipairs(boat:GetChildren()) do
-		local seat = cannon:FindFirstChild("Seat")
-		if seat then
-			connections[i] = seat.ChildAdded:Connect(function(child)
-				if child.Name == "SeatWeld" and not seatUsed then
-					seatUsed = true
-					disconnectAll(connections)
-				end
-			end)
+		for i, cannon in ipairs(boat:GetChildren()) do
+			local seat = cannon:FindFirstChild("Seat")
+			if seat then
+				connections[i] = seat.ChildAdded:Connect(function(child)
+					if child.Name == "SeatWeld" and not seatUsed then
+						seatUsed = true
+						disconnectAll(connections)
+					end
+				end)
+			end
+		end
+
+		local elapsed = 0
+		repeat
+			task.wait(0.1)
+			elapsed = elapsed + 0.1
+		until seatUsed or elapsed > 120
+
+		disconnectAll(connections)
+
+		if seatUsed then
+			task.wait(1)
+			if findInMap("FrozenHeart") then
+				SendWebhook(nil, "Got Heart",    0x00FF00, webhookUrl)
+			else
+				SendWebhook(nil, "Missed Heart", 0xFF0000, webhookUrl)
+			end
 		end
 	end
 
-	local elapsed = 0
-	repeat
-		task.wait(0.1)
-		elapsed = elapsed + 0.1
-	until seatUsed or elapsed > 120
-
-	if not seatUsed then
-		disconnectAll(connections)
-		setNotificationFps(30)
-		continue
+	local timeout = 0
+	while findInWorkspace("FrozenHeart") and timeout < 300 do
+		task.wait(0.5)
+		timeout = timeout + 0.5
 	end
-
-	if not findInMap("FrozenHeart") then
-		SendWebhook(nil, "Got Heart",    0x00FF00, webhookUrl)
-	else
-		SendWebhook(nil, "Missed Heart", 0xFF0000, webhookUrl)
-	end
-
-	local heartElapsed = 0
-	while findInMap("FrozenHeart") and heartElapsed < 30 do
-		task.wait(0.1)
-		heartElapsed = heartElapsed + 0.1
-	end
-
 	setFps(30)
 
 	task.wait(5)
