@@ -300,107 +300,12 @@ log("Pad detection active.")
 
 -- ── paths ────────────────────────────────────────────────────────────────────
 
-local PATHS = {
-    { spawn = Vector3.new(-399.904633, 201.054138, 222.452164), waypoints = {
-        Vector3.new(-639.601318, 202.772675, -162.464706),
-        Vector3.new(-634.090576, 222.132507, -276.580444),
-        Vector3.new(-503.341797, 235.691422, -428.687073) } },
-    { spawn = Vector3.new(-390.904633, 201.054138, 222.452133), waypoints = {
-        Vector3.new(-428.296417, 202.08783,   94.0205841),
-        Vector3.new(-645.095703, 202.772644, -170.690552),
-        Vector3.new(-563.540039, 235.691437, -335.366364),
-        Vector3.new(-459.487671, 235.691422, -444.92865) } },
-    { spawn = Vector3.new(-381.904724, 201.054138, 222.452148), waypoints = {
-        Vector3.new(-392.445984, 202.771042,  146.77565),
-        Vector3.new(-653.576294, 202.772675, -154.134781),
-        Vector3.new(-628.130249, 223.73999,  -281.792725),
-        Vector3.new(-454.053619, 235.691437, -336.898895),
-        Vector3.new(-483.50885,  235.559174, -420.197113) } },
-    { spawn = Vector3.new(-372.904755, 201.054138, 222.452148), waypoints = {
-        Vector3.new(-373.152374, 202.285431,  107.500404),
-        Vector3.new(-640.437256, 202.772675, -161.328339),
-        Vector3.new(-633.154175, 222.055267, -275.587616),
-        Vector3.new(-479.357056, 235.032562, -385.325714),
-        Vector3.new(-484.863678, 235.032562, -418.686859) } },
-    { spawn = Vector3.new(-363.904785, 201.054138, 222.452164), waypoints = {
-        Vector3.new(-365.14801,  202.314255,  109.171097),
-        Vector3.new(-69.7169952, 203.480347, -179.378128),
-        Vector3.new(-98.7861023, 225.324509, -290.760193),
-        Vector3.new(-261.457153, 235.691376, -379.734283),
-        Vector3.new(-480.321564, 235.691376, -377.664886),
-        Vector3.new(-482.86322,  235.032562, -417.540985) } },
-    { spawn = Vector3.new(-354.904816, 201.054138, 222.452164), waypoints = {
-        Vector3.new(-543.7146,   202.772614, -100.072098),
-        Vector3.new(-654.584717, 202.772675, -164.247482),
-        Vector3.new(-632.112244, 222.921661, -279.81485),
-        Vector3.new(-503.563507, 235.032562, -417.818268) } },
-    { spawn = Vector3.new(-345.904877, 201.054138, 222.452148), waypoints = {
-        Vector3.new(-334.919098, 202.097382,  108.860878),
-        Vector3.new(-89.5553284, 202.772552, -107.929153),
-        Vector3.new(-69.5169144, 210.797684, -223.427094),
-        Vector3.new(-135.847977, 231.958374, -305.476074),
-        Vector3.new(-237.792786, 235.691345, -334.190308),
-        Vector3.new(-417.891205, 235.691391, -370.264954),
-        Vector3.new(-487.402588, 235.032562, -417.892487) } },
-    { spawn = Vector3.new(-336.904877, 201.054138, 222.452148), waypoints = {
-        Vector3.new(-234.089828, 202.772614,  140.891373),
-        Vector3.new(-135.388672, 202.772324,    6.61019373),
-        Vector3.new(-71.7440491, 202.772552, -166.312393),
-        Vector3.new(-106.690437, 227.004623, -295.105225),
-        Vector3.new(-251.830276, 234.979065, -389.427338),
-        Vector3.new(-463.136261, 235.691422, -422.388824) } },
-    { spawn = Vector3.new(-327.904907, 201.054138, 222.452148), waypoints = {
-        Vector3.new(-76.0165176, 202.772552, -173.222076),
-        Vector3.new(-91.680275,  224.412064, -291.036835),
-        Vector3.new(-307.729736, 235.62616,  -423.253998),
-        Vector3.new(-470.264465, 235.691422, -438.771393) } },
-}
+-- (legacy walking paths removed — movement now uses the parkour route in runPipeline)
 
 local visFolder = nil
 
 local function clearVisualizer()
     if visFolder then visFolder:Destroy(); visFolder = nil end
-end
-
-local function buildVisualizer(pathData)
-    clearVisualizer()
-    visFolder = Instance.new("Folder")
-    visFolder.Name = "PathVisualizer"; visFolder.Parent = workspace
-    local wps, spheres = pathData.waypoints, {}
-    for i, pos in ipairs(wps) do
-        local p = Instance.new("Part")
-        p.Shape = Enum.PartType.Ball; p.Size = Vector3.new(3,3,3); p.CFrame = CFrame.new(pos)
-        p.Anchored = true; p.CanCollide = false; p.Material = Enum.Material.Neon
-        p.Color = Color3.fromRGB(0, 180, 255); p.CastShadow = false; p.Parent = visFolder
-        local bill = Instance.new("BillboardGui", p)
-        bill.Size = UDim2.new(0, 28, 0, 16); bill.StudsOffset = Vector3.new(0, 3, 0)
-        bill.AlwaysOnTop = true
-        local lbl2 = Instance.new("TextLabel", bill)
-        lbl2.Size = UDim2.new(1, 0, 1, 0); lbl2.BackgroundTransparency = 1
-        lbl2.TextColor3 = Color3.new(1,1,1); lbl2.TextStrokeTransparency = 0
-        lbl2.Font = Enum.Font.GothamBold; lbl2.TextScaled = true; lbl2.Text = tostring(i)
-        spheres[i] = p
-        if i > 1 then
-            local a, b = wps[i-1], pos
-            local line = Instance.new("Part")
-            line.Size = Vector3.new(0.2, 0.2, (b-a).Magnitude)
-            line.CFrame = CFrame.lookAt((a+b)/2, b)
-            line.Anchored = true; line.CanCollide = false; line.Material = Enum.Material.Neon
-            line.Color = Color3.fromRGB(30, 80, 160); line.Transparency = 0.5
-            line.CastShadow = false; line.Parent = visFolder
-        end
-    end
-    return spheres
-end
-
-local function selectPath()
-    local pos, best, bestDist = hrp.Position, nil, math.huge
-    for i, data in ipairs(PATHS) do
-        local d = (pos - data.spawn).Magnitude
-        if d < bestDist then bestDist = d; best = i end
-    end
-    log("Matched path " .. best)
-    return best
 end
 
 local running = false
@@ -418,12 +323,6 @@ local function flatDir(a, b)
     local m = d.Magnitude
     if m < 1e-4 then return Vector3.new(0, 0, 0), 0 end
     return d / m, m
-end
-
--- small per-run horizontal jitter on a waypoint
-local function jitter(wp)
-    local off = Vector3.new((math.random()*2-1)*DEVIATE_MAX, 0, (math.random()*2-1)*DEVIATE_MAX)
-    return wp + off
 end
 
 -- ── plain walkTo (used for bail / short final approach) ──────────────────────
@@ -836,40 +735,37 @@ function runPipeline()
     running = true
     runBtn.Text = "Stop"; runBtn.BackgroundColor3 = Color3.fromRGB(150, 35, 35)
 
-    local pathIdx = selectPath()
-    local pathData = PATHS[pathIdx]
-    local wps = pathData.waypoints
-    local spheres = buildVisualizer(pathData)
+    -- Reach the pad3 staging area using hubParkour's MOVEMENT (jump + dash), not a
+    -- walked waypoint path. This is a single continuous parkour run from spawn onto
+    -- the deck (route[1]), then a short plain walk to a point just OFF pad3 (route[2])
+    -- where the squad regroups before the coordination loop below takes over.
+    -- The parkour phase logic (burst/climb/cruise) is keyed off the spawn->pad geometry,
+    -- so it must run as one leg — NOT segmented across hubWalk's old PATHS waypoints.
+    local stage = PAD_CONFIGS[1]   -- pad3 region is the staging area
+    local route = {
+        Vector3.new(PK.obstacleLeftX + rand(-7, 6), 235, -360 + rand(-13, 13)),
+        Vector3.new(-466 + rand(-4, 4), 235, -423 + rand(-4, 4)),   -- off-pad staging by pad3
+    }
 
-    guiPath.Text = "Path " .. pathIdx
-    setPWStatus("Walking", Color3.fromRGB(80, 220, 120))
-    guiWaypoint.Text = "0 / " .. #wps
+    guiPath.Text = "Parkour"
+    setPWStatus("Parkour", Color3.fromRGB(80, 220, 120))
+    guiWaypoint.Text = "0 / " .. #route
 
-    for i, pos in ipairs(wps) do
+    for i, pt in ipairs(route) do
         if not running then break end
-        spheres[i].Color = Color3.fromRGB(255, 200, 0)
-        guiWaypoint.Text = i .. " / " .. #wps
-        log("WP " .. i .. "/" .. #wps)
-        -- use parkour movement for all path waypoints
-        local target = jitter(pos)
-        local useParkour = hrp.Position.Y < 225 and hrp.Position.Z > STOP_JUMP_Z
-        if useParkour then
-            parkourTo(target)
-        else
-            walkTo(target)
-        end
-        if not running then break end
-        spheres[i].Color = Color3.fromRGB(0, 255, 80)
+        guiWaypoint.Text = i .. " / " .. #route
+        log("Route " .. i .. "/" .. #route)
+        -- parkour (jump/dash) for the spawn -> deck leg; plain walk once on the deck
+        local useParkour = i == 1 and hrp.Position.Y < 225 and hrp.Position.Z > STOP_JUMP_Z
+        if useParkour then parkourTo(pt) else walkTo(pt) end
     end
 
-    clearVisualizer()
     if not running then stopPipeline(); return end
 
     setPWStatus("Done", Color3.fromRGB(80, 220, 120))
-    guiWaypoint.Text = #wps .. " / " .. #wps
+    guiWaypoint.Text = #route .. " / " .. #route
 
     local total = #ALLOWED_ACCOUNTS
-    local stage = PAD_CONFIGS[1]
     local state = {}
     local committed = nil
 
