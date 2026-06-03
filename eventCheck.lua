@@ -32,31 +32,67 @@ end
 
 getgenv().leviInProgress = false
 
+local function setFpsCap(cap)
+    if typeof(setfpscap) == "function" then
+        pcall(setfpscap, cap)
+    end
+end
+
+local function findInMap(...)
+    local node = workspace:FindFirstChild("Map")
+    for _, name in ipairs({...}) do
+        if not node then return nil end
+        node = node:FindFirstChild(name)
+    end
+    return node
+end
+
 local function waitForGate()
     while true do
-        local doorLeft = workspace:FindFirstChild("Map")
-            and workspace.Map:FindFirstChild("LeviathanGate")
-            and workspace.Map.LeviathanGate:FindFirstChild("DOORLEFT")
-        if doorLeft then return end
+        if findInMap("LeviathanGate", "DOORLEFT") then return end
         task.wait(1)
     end
 end
 
 local function waitForHeart()
-    while true do
-        if workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("FrozenHeart") then
-            return
-        end
+    local deadline = tick() + 90
+    while tick() < deadline do
+        if findInMap("FrozenHeart") then return true end
         task.wait(1)
     end
+    return false
 end
 
-local function waitForHeartGone()
-    while true do
-        if not (workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("FrozenHeart")) then
-            return
+local function waitForSeatOrTimeout()
+    local boat = workspace:FindFirstChild("Boats")
+        and workspace.Boats:FindFirstChild("Beast Hunter")
+    if not boat then
+        task.wait(120)
+        return
+    end
+
+    local seatUsed    = false
+    local connections = {}
+    for i, cannon in ipairs(boat:GetChildren()) do
+        local seat = cannon:FindFirstChild("Seat")
+        if seat then
+            connections[i] = seat.ChildAdded:Connect(function(child)
+                if child.Name == "SeatWeld" and not seatUsed then
+                    seatUsed = true
+                    for _, c in pairs(connections) do c:Disconnect() end
+                end
+            end)
         end
-        task.wait(0.5)
+    end
+
+    local elapsed = 0
+    repeat
+        task.wait(0.1)
+        elapsed += 0.1
+    until seatUsed or elapsed > 120
+
+    if not seatUsed then
+        for _, c in pairs(connections) do c:Disconnect() end
     end
 end
 
@@ -65,10 +101,14 @@ task.spawn(function()
         waitForGate()
         getgenv().leviInProgress = true
 
-        waitForHeart()
-        waitForHeartGone()
-        getgenv().leviInProgress = false
+        if waitForHeart() then
+            setFpsCap(80)
+            waitForSeatOrTimeout()
+            task.wait(1)
+            setFpsCap(30)
+        end
 
+        getgenv().leviInProgress = false
         task.wait(5)
     end
 end)
@@ -205,27 +245,31 @@ local function update()
     end
 end
 
-if isInDungeon() then
-    startDungeons()
+if cfg.leviOnly then
+    startLevi()
 else
-    local ok, err = pcall(update)
-    if not ok then warn("[EventCheck] update() error: " .. tostring(err)) end
-end
-
-DataRemote.OnClientInvoke = function(p, ...)
-    if p == "DataUpdated" then
-        if isInDungeon() then return end
+    if isInDungeon() then
+        startDungeons()
+    else
         local ok, err = pcall(update)
         if not ok then warn("[EventCheck] update() error: " .. tostring(err)) end
     end
-end
 
-task.spawn(function()
-    while true do
-        task.wait(30)
-        if not isInDungeon() then
+    DataRemote.OnClientInvoke = function(p, ...)
+        if p == "DataUpdated" then
+            if isInDungeon() then return end
             local ok, err = pcall(update)
-            if not ok then warn("[EventCheck] poll error: " .. tostring(err)) end
+            if not ok then warn("[EventCheck] update() error: " .. tostring(err)) end
         end
     end
-end)
+
+    task.spawn(function()
+        while true do
+            task.wait(30)
+            if not isInDungeon() then
+                local ok, err = pcall(update)
+                if not ok then warn("[EventCheck] poll error: " .. tostring(err)) end
+            end
+        end
+    end)
+end
