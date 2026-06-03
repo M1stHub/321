@@ -918,7 +918,7 @@ local function startDungeonIfReady(pad)
     if not remote then DBG.coord = "ready_no_remote"; return true end
 
     task.wait(2)
-    remote:FireServer("Difficulty", "Easy")
+    remote:FireServer("Difficulty", getgenv().ParkourDifficulty or "Easy")
     task.wait(1)
     remote:FireServer("Start")
     DBG.coord = "started"
@@ -930,11 +930,12 @@ local function runPadCoordinator(stagePad)
 
     local total = totalAllowed()
     local state, committed = {}, nil
-    local stagePoint = approachPoint(stagePad or PADS[1])
+    local stagePadRef = stagePad or PADS[1]
+    local stagePoint = stagePadRef.walkOn
     local busySince = {}
 
     DBG.coord = "staging"
-    while running and accsNear(stagePoint, CFG.regroupRadius) < total do
+    while running and accsNear(stagePoint, 55) < total do
         task.wait(CFG.padPoll)
     end
 
