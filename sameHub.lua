@@ -4,15 +4,15 @@ local LocalPlayer = Players.LocalPlayer
 
 local cfg = getgenv().SameHubConfig or {}
 local MAIN_USERID = cfg.mainUserId
-local HUB_WALK_URL = cfg.hubWalkUrl
+local SCRIPT_URL = cfg.scriptUrl or cfg.hubParkourUrl or cfg.hubWalkUrl
 local ALLOWED_ACCOUNTS = cfg.allowedAccounts
 
 if not MAIN_USERID then
     warn("[SameHub] SameHubConfig.mainUserId not set")
     return
 end
-if not HUB_WALK_URL then
-    warn("[SameHub] SameHubConfig.hubWalkUrl not set")
+if not SCRIPT_URL then
+    warn("[SameHub] SameHubConfig.scriptUrl (or hubParkourUrl / hubWalkUrl) not set")
     return
 end
 if ALLOWED_ACCOUNTS and not table.find(ALLOWED_ACCOUNTS, LocalPlayer.Name) then
@@ -21,8 +21,8 @@ if ALLOWED_ACCOUNTS and not table.find(ALLOWED_ACCOUNTS, LocalPlayer.Name) then
 end
 
 local function executeMain()
-    local ok, err = pcall(function() loadstring(game:HttpGet(HUB_WALK_URL))() end)
-    if not ok then warn("[SameHub] hubWalk error: " .. tostring(err)) end
+    local ok, err = pcall(function() loadstring(game:HttpGet(SCRIPT_URL))() end)
+    if not ok then warn("[SameHub] script error: " .. tostring(err)) end
 end
 
 local function waitForMainInLobby()
