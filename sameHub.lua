@@ -40,9 +40,38 @@ local function waitForMainInLobby()
     end
 end
 
+local function countPresent()
+    local present = 0
+    for _, name in ipairs(ALLOWED_ACCOUNTS or {}) do
+        local p = Players:FindFirstChild(name)
+        local ch = p and p.Character
+        if ch and ch:FindFirstChild("HumanoidRootPart") then
+            present += 1
+        end
+    end
+    return present
+end
+
+local function waitForAllAccounts()
+    if not ALLOWED_ACCOUNTS or #ALLOWED_ACCOUNTS == 0 then return end
+    local total = #ALLOWED_ACCOUNTS
+    local elapsed = 0
+    while true do
+        local present = countPresent()
+        if present >= total then
+            print(("[SameHub] All %d accounts present, executing"):format(total))
+            return
+        end
+        if elapsed % 3 == 0 then
+            print(("[SameHub] Waiting for all accounts in lobby... (%d/%d)"):format(present, total))
+        end
+        task.wait(1)
+        elapsed += 1
+    end
+end
+
 if LocalPlayer.UserId == MAIN_USERID then
-    print("[SameHub] This is the main account, executing hubWalk directly")
-    executeMain()
+    print("[SameHub] This is the main account")
 else
     print("[SameHub] Alt account, checking if main is in lobby...")
     if not Players:GetPlayerByUserId(MAIN_USERID) then
@@ -55,5 +84,7 @@ else
         end
         waitForMainInLobby()
     end
-    executeMain()
 end
+
+waitForAllAccounts()
+executeMain()
