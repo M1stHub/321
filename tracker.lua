@@ -33,6 +33,13 @@ local function formatFrags(frags)
     end
 end
 
+local function formatNumber(value)
+    value = math.floor(tonumber(value) or 0)
+
+    local left, num, right = tostring(value):match("^([^%d]*%d)(%d*)(.-)$")
+    return left .. (num:reverse():gsub("(%d%d%d)", "%1,"):reverse()) .. right
+end
+
 pcall(function()
     local player = Players.LocalPlayer
     if not player or player.UserId == getgenv().notiAcc then return end
@@ -92,6 +99,18 @@ local function ImGoated()
             end
         end)
 
+        local energyText = "Unknown"
+        pcall(function()
+            local replicatedPlayerData = require(RepStorage:WaitForChild("DungeonClient"):WaitForChild("ReplicatedPlayerData"))
+            local data = replicatedPlayerData.get()
+            if typeof(data) ~= "table" then return end
+
+            local currentEnergy = tonumber(data.CurrentEnergy)
+            if not currentEnergy then return end
+
+            energyText = tostring(math.floor(currentEnergy))
+        end)
+
         local tracker = {
             ["Mythical Scroll"] = 0,
             ["Leviathan Heart"] = 0,
@@ -102,7 +121,25 @@ local function ImGoated()
 
         local mythicalFruits = {}
         local legendaryFruits = {}
-        local rings = {}
+        local ringCounts = {}
+
+        local function cleanItemName(name)
+            name = tostring(name or "")
+            name = name:gsub("<.->", "")
+            name = name:gsub("%s+", " ")
+            return name:match("^%s*(.-)%s*$")
+        end
+
+        local function isTrackedRing(name)
+            name = cleanItemName(name)
+            local nameLower = name:lower()
+
+            if nameLower == "tomoe ring" or nameLower == "spring" then
+                return false
+            end
+
+            return nameLower:match("^ring of ") ~= nil
+        end
 
         for _, item in pairs(response) do
             pcall(function()
@@ -112,11 +149,10 @@ local function ImGoated()
                     tracker[item.Name] = tonumber(item.Count) or 0
                 end
 
-                local nameLower = (item.Name or ""):lower()
-                if nameLower:find("ring") then
-                    local displayName = item.DisplayName or item.Name or "Unknown"
+                if isTrackedRing(item.Name) or isTrackedRing(item.DisplayName) then
+                    local displayName = cleanItemName(item.DisplayName or item.Name or "Unknown")
                     local count = tonumber(item.Count) or 1
-                    table.insert(rings, displayName .. " x" .. count)
+                    ringCounts[displayName] = (ringCounts[displayName] or 0) + count
                 end
 
                 if item.Type == "Blox Fruit" then
@@ -136,10 +172,17 @@ local function ImGoated()
 
         local mythicalList = #mythicalFruits > 0 and table.concat(mythicalFruits, "\n") or "None"
         local legendaryList = #legendaryFruits > 0 and table.concat(legendaryFruits, "\n") or "None"
+        local rings = {}
+        for name, count in pairs(ringCounts) do
+            table.insert(rings, name .. " x" .. count)
+        end
+        table.sort(rings)
+
         local ringList = #rings > 0 and table.concat(rings, "\n") or "None"
 
         local fields = {
             {name = "Fragments", value = formatFrags(frags), inline = true},
+            {name = "Energy", value = energyText, inline = true},
             {name = "Leviathan Heart", value = tostring(tracker["Leviathan Heart"]), inline = true},
             {name = "Leviathan Scale", value = tostring(tracker["Leviathan Scale"]), inline = true},
             {name = "Mythical Scroll", value = tostring(tracker["Mythical Scroll"]), inline = true},
