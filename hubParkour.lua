@@ -247,6 +247,9 @@ local runtime = hubConfig.runtime
 runtime.done = false
 runtime.startedDungeon = false
 
+local startSession
+local stopSession
+
 local teamSet = {}
 for _, name in ipairs(hubConfig.accounts) do
     teamSet[tostring(name)] = true
@@ -828,13 +831,17 @@ local function createMonitorGui()
     })
 
     makeButton(header, "Start", -124, COLORS.start).MouseButton1Click:Connect(function()
-        setCoordEnabled(true)
-        log("Pad coordination enabled")
+        if runtime.runActive then
+            log("Already running")
+            return
+        end
+        log("Starting")
+        startSession()
     end)
 
     makeButton(header, "Stop", -64, COLORS.stop).MouseButton1Click:Connect(function()
-        setCoordEnabled(false)
-        log("Pad coordination stopped")
+        log("Stopping")
+        stopSession()
     end)
 
     local body = Instance.new("Frame")
@@ -1411,9 +1418,6 @@ local function teamFullyOnPad(padIndex)
     if teamOnPadCount(padIndex) >= teamCount() then
         return true
     end
-    -- Fallback: the pad's own status reads a full team and no random is in/near it.
-    -- This covers cases where the prop-box presence check undercounts even though
-    -- every team account is actually standing on the pad (status shows 4/4).
     local statusCount = getStatusCount(padIndex)
     if statusCount and statusCount >= teamCount() and teamOnPadCount(padIndex) >= 1 then
         local tracked = randomInTrackedPad(padIndex, statusCount)
@@ -1430,21 +1434,6 @@ local function waitForCoordEnabled()
         task.wait(0.5)
     end
     return state.running
-end
-
-local function waitForTeamNearPad(padIndex)
-    while state.running do
-        if not state.coordEnabled then
-            return true
-        end
-        local count = teamNearPadCount(padIndex)
-        if count >= teamCount() then
-            return true
-        end
-        setCoordStatus("Pad " .. padIndex .. " team " .. count .. "/" .. teamCount())
-        task.wait(1)
-    end
-    return false
 end
 
 local function padClearLongEnough(padIndex, clearSince)
@@ -1490,13 +1479,35 @@ local function waitForPadClear(padIndex, timeout)
     return false, "stopped"
 end
 
+local function alternatePadOpen(padIndex)
+    if randomBlockingPad(padIndex) then
+        return false
+    end
+    local statusCount = getStatusCount(padIndex)
+    if statusCount == nil then
+        return false
+    end
+    return statusCount == 0 or teamOnPadCount(padIndex) >= statusCount
+end
+
 local function emptyAlternatePad(currentPad)
     for _, padIndex in ipairs(ALTERNATE_ORDER[currentPad] or { 1, 2, 3 }) do
-        if padIndex ~= currentPad and getStatusCount(padIndex) == 0 and not randomBlockingPad(padIndex) then
+        if padIndex ~= currentPad and alternatePadOpen(padIndex) then
             return padIndex
         end
     end
     return nil
+end
+
+local function teamCommittedPad()
+    local bestPad, bestCount = nil, 0
+    for padIndex = 1, 3 do
+        local onCount = teamOnPadCount(padIndex)
+        if onCount > bestCount then
+            bestPad, bestCount = padIndex, onCount
+        end
+    end
+    return bestPad
 end
 
 local function moveToPadStage(padIndex, label)
@@ -1540,6 +1551,12 @@ local function waitForTeamOnPad(padIndex)
             return
         end
 
+        local committed = teamCommittedPad()
+        if committed and committed ~= padIndex then
+            bailFromPad(padIndex, "team committed to Pad " .. committed)
+            return
+        end
+
         local hasRandom, who = randomBlockingPad(padIndex)
         if hasRandom then
             bailFromPad(padIndex, who)
@@ -1554,27 +1571,20 @@ local function waitForTeamOnPad(padIndex)
     end
 end
 
-local function preparePad(padIndex)
+local function evaluatePad(padIndex)
     if teamOnPadCount(padIndex) > 0 and not randomBlockingPad(padIndex) then
-        return padIndex
+        return "enter"
     end
 
-    local clear, reason = waitForPadClear(padIndex, coordination.padBusySwitchTime)
-    if clear then
-        return padIndex
+    if waitForPadClear(padIndex, coordination.padBusySwitchTime) then
+        return "enter"
     end
 
     local alternate = emptyAlternatePad(padIndex)
     if alternate then
-        log("Switching Pad " .. padIndex .. " -> Pad " .. alternate)
-        setCoordStatus("Switching P" .. padIndex .. " -> P" .. alternate)
-        moveToPadStage(alternate, "WAIT")
-        return alternate
+        return "switch", alternate
     end
-
-    setCoordStatus("No empty alternate")
-    moveToPadStage(padIndex, "WAIT")
-    return padIndex, reason
+    return "hold"
 end
 
 local function enterPad(padIndex)
@@ -1584,20 +1594,58 @@ local function enterPad(padIndex)
     waitForTeamOnPad(padIndex)
 end
 
+local function waitForTeamRally(stagedPad)
+    while state.running do
+        if not state.coordEnabled then
+            return stagedPad
+        end
+        local committed = teamCommittedPad()
+        if committed and committed ~= stagedPad then
+            return committed
+        end
+        local count = teamNearPadCount(stagedPad)
+        if count >= teamCount() then
+            return stagedPad
+        end
+        setCoordStatus("Pad " .. stagedPad .. " gather " .. count .. "/" .. teamCount())
+        task.wait(coordination.waitPoll)
+    end
+    return stagedPad
+end
+
 local function coordinatePads(startPad)
     if teamCount() < 2 then
         warnHub("hubconfig.accounts only has " .. teamCount() .. " account(s)")
     end
 
-    local currentPad = startPad
+    local stagedPad = startPad
     while state.running do
-        if not waitForCoordEnabled() or not waitForTeamNearPad(currentPad) or not waitForCoordEnabled() then
+        if not waitForCoordEnabled() then
             break
         end
 
-        currentPad = preparePad(currentPad)
-        if waitForCoordEnabled() then
-            enterPad(currentPad)
+        local target = waitForTeamRally(stagedPad)
+        if not state.running or not waitForCoordEnabled() then
+            break
+        end
+        if target ~= stagedPad then
+            log("Following team Pad " .. stagedPad .. " -> Pad " .. target)
+            setCoordStatus("Follow P" .. stagedPad .. " -> P" .. target)
+            moveToPadStage(target, "FOLLOW")
+            stagedPad = target
+        else
+            local decision, alternate = evaluatePad(stagedPad)
+            if decision == "enter" and waitForCoordEnabled() then
+                enterPad(stagedPad)
+            elseif decision == "switch" then
+                log("Pad " .. stagedPad .. " blocked -> staging Pad " .. alternate)
+                setCoordStatus("Switch P" .. stagedPad .. " -> P" .. alternate)
+                moveToPadStage(alternate, "SWITCH")
+                stagedPad = alternate
+            else
+                setCoordStatus("Pad " .. stagedPad .. " busy, holding")
+                moveToPadStage(stagedPad, "HOLD")
+            end
         end
     end
 end
@@ -1659,10 +1707,40 @@ local function run()
     log("Done")
 end
 
+function stopSession()
+    if not runtime.runActive and not state.running then
+        return
+    end
+    cleanup(false, true)
+    setCoordEnabled(false)
+    setCoordStatus("stopped")
+end
+
+function startSession()
+    if runtime.runActive then
+        return
+    end
+    state.running = true
+    runtime.done = false
+    runtime.startedDungeon = false
+    runtime.runActive = true
+    state.oldAutoRotate = nil
+    state.noEnergyIgnored = {}
+    setCoordEnabled(true)
+    setCoordStatus("starting")
+    task.spawn(function()
+        local ok, err = pcall(run)
+        if not ok then
+            warnHub("Run error: " .. tostring(err))
+        end
+        runtime.runActive = false
+    end)
+end
+
 if runtime.stop then
     pcall(runtime.stop)
 end
 task.wait(0.1)
 runtime.stop = cleanup
 
-task.spawn(run)
+startSession()
