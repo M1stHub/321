@@ -221,6 +221,7 @@ local function update()
         else
             print("[MistFlag] Energy too low (" .. energy .. ") — switching to Leviathan")
             switchToLevi()
+            game.Players.LocalPlayer:Kick()
         end
 
     elseif flag == "Leviathan" then
