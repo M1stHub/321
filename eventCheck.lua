@@ -221,10 +221,16 @@ local function update()
         else
             print("[MistFlag] Energy too low (" .. energy .. ") — switching to Leviathan")
             switchToLevi()
-            game.Players.LocalPlayer:Kick()
+            game.Players.LocalPlayer:Kick("dungeons done")
         end
 
     elseif flag == "Leviathan" then
+        if lastFlag == "Dungeons" then
+            print("[MistFlag] Flag switched Dungeons → Leviathan — kicking")
+            setFlag("Leviathan")
+            game.Players.LocalPlayer:Kick("dungeons done")
+            return
+        end
         if energy >= DUNGEON_START_ENERGY then
             print("[MistFlag] Energy refilled (" .. energy .. ") — switching to Dungeons")
             switchToDungeons(true)
