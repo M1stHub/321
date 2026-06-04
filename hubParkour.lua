@@ -83,6 +83,13 @@ local DEFAULT_CONFIG = {
         padBusySwitchTime = 5,
         lookTurnTime = 0.35,
     },
+    dungeon = {
+        difficulty = "Normal",
+        startWhenTeamReady = true,
+        leaderOnly = true,
+        leaderName = nil,
+        startDelay = 0.25,
+    },
     visualizer = {
         enabled = true,
         folderName = "HubParkourVis",
@@ -101,6 +108,9 @@ local STRINGS = {
     pad = "Pad",
     propTeleporters = "PropTeleporters",
     teleporterPrefix = "DUNGEON_TELEPORTER",
+    settingsRemote = "DungeonSettingsChanged",
+    difficultySetting = "Difficulty",
+    startSetting = "Start",
     billboard = "TeleporterBillboard",
     status = "Status",
     monitorFolder = "PropPadBoxes",
@@ -147,6 +157,11 @@ local STOP_B = Vector3.new(-160, 235, STOP_JUMP_Z)
 local OBSTACLE = { minX = -393, maxX = -305, minZ = -357, maxZ = -246 }
 local PAD_STATUS_INDEX = { [1] = 3, [2] = 2, [3] = 1 }
 local ALTERNATE_ORDER = { [1] = { 2, 3 }, [2] = { 3, 1 }, [3] = { 2, 1 } }
+local VALID_DIFFICULTIES = {
+    Normal = true,
+    Hard = true,
+    Challenge = true,
+}
 
 local PAD_POINTS = {
     [1] = {
@@ -227,7 +242,10 @@ hubConfig.runtime.padCoordEnabled = state.coordEnabled
 local movement = hubConfig.movement
 local monitor = hubConfig.monitor
 local coordination = hubConfig.coordination
+local dungeon = hubConfig.dungeon
 local runtime = hubConfig.runtime
+runtime.done = false
+runtime.startedDungeon = false
 
 local teamSet = {}
 for _, name in ipairs(hubConfig.accounts) do
@@ -300,16 +318,25 @@ local function getPads()
     return hub and hub:FindFirstChild(STRINGS.pads)
 end
 
-local function getStatusText(padIndex)
+local function getTeleporter(padIndex)
     local pads = getPads()
     local statusIndex = PAD_STATUS_INDEX[padIndex] or padIndex
-    local teleporter = pads and pads:FindFirstChild(STRINGS.teleporterPrefix .. tostring(statusIndex))
+    return pads and pads:FindFirstChild(STRINGS.teleporterPrefix .. tostring(statusIndex))
+end
+
+local function getStatusText(padIndex)
+    local teleporter = getTeleporter(padIndex)
     local label = teleporter and getChild(teleporter, { STRINGS.pad, STRINGS.billboard, STRINGS.status })
     return label and label.Text or STRINGS.unknownStatus
 end
 
 local function getStatusCount(padIndex)
     return tonumber(string.match(getStatusText(padIndex), "(%d+)%s*/"))
+end
+
+local function getDungeonSettingsRemote(padIndex)
+    local teleporter = getTeleporter(padIndex)
+    return teleporter and teleporter:FindFirstChild(STRINGS.settingsRemote)
 end
 
 local function refreshCharacter()
@@ -1242,6 +1269,61 @@ local function teamCount()
     return math.max(#hubConfig.accounts, 1)
 end
 
+local function getDungeonLeaderName()
+    return dungeon.leaderName or tostring(hubConfig.accounts[1])
+end
+
+local function canStartDungeon()
+    return dungeon.startWhenTeamReady and (not dungeon.leaderOnly or localPlayer.Name == getDungeonLeaderName())
+end
+
+local function getDungeonDifficulty()
+    local difficulty = tostring(dungeon.difficulty or "")
+    if VALID_DIFFICULTIES[difficulty] then
+        return difficulty
+    end
+    warnHub("Invalid hubconfig.dungeon.difficulty: " .. difficulty .. ". Using Normal.")
+    return "Normal"
+end
+
+local function fireDungeonSetting(remote, settingName, settingValue)
+    local ok, err = pcall(function()
+        if settingValue == nil then
+            remote:FireServer(settingName)
+        else
+            remote:FireServer(settingName, settingValue)
+        end
+    end)
+    if not ok then
+        warnHub("Failed to fire dungeon setting " .. tostring(settingName) .. ": " .. tostring(err))
+    end
+    return ok
+end
+
+local function startDungeonFromPad(padIndex)
+    if runtime.startedDungeon or not canStartDungeon() then
+        return
+    end
+
+    local remote = getDungeonSettingsRemote(padIndex)
+    if not remote then
+        warnHub("Dungeon settings remote missing for Pad " .. tostring(padIndex))
+        return
+    end
+
+    local difficulty = getDungeonDifficulty()
+    log("Starting dungeon from Pad " .. tostring(padIndex) .. " on " .. difficulty)
+
+    if not fireDungeonSetting(remote, STRINGS.difficultySetting, difficulty) then
+        return
+    end
+
+    task.wait(dungeon.startDelay)
+    if fireDungeonSetting(remote, STRINGS.startSetting) then
+        runtime.startedDungeon = true
+    end
+end
+
 local function teamNearPadCount(padIndex)
     local count = 0
     local target = getPadTarget(padIndex)
@@ -1448,6 +1530,7 @@ local function waitForTeamOnPad(padIndex)
         local teamOn = teamOnPadCount(padIndex)
         if teamOn >= teamCount() then
             log("Team on Pad " .. padIndex .. ": " .. teamOn .. "/4")
+            startDungeonFromPad(padIndex)
             waitWhileTeamHoldsPad(padIndex)
             return
         end
