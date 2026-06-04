@@ -1407,6 +1407,24 @@ local function randomBlockingPad(padIndex)
     return false, nil
 end
 
+local function teamFullyOnPad(padIndex)
+    if teamOnPadCount(padIndex) >= teamCount() then
+        return true
+    end
+    -- Fallback: the pad's own status reads a full team and no random is in/near it.
+    -- This covers cases where the prop-box presence check undercounts even though
+    -- every team account is actually standing on the pad (status shows 4/4).
+    local statusCount = getStatusCount(padIndex)
+    if statusCount and statusCount >= teamCount() and teamOnPadCount(padIndex) >= 1 then
+        local tracked = randomInTrackedPad(padIndex, statusCount)
+        local nearby = randomNearPad(padIndex, statusCount)
+        if not tracked and not nearby then
+            return true
+        end
+    end
+    return false
+end
+
 local function waitForCoordEnabled()
     while state.running and not state.coordEnabled do
         task.wait(0.5)
@@ -1499,12 +1517,6 @@ local function waitWhileTeamHoldsPad(padIndex)
             return
         end
 
-        local hasRandom, who = randomBlockingPad(padIndex)
-        if hasRandom then
-            bailFromPad(padIndex, who)
-            return
-        end
-
         if teamOnPadCount(padIndex) < teamCount() then
             log("Team moved off Pad " .. padIndex)
             return
@@ -1521,17 +1533,16 @@ local function waitForTeamOnPad(padIndex)
             return
         end
 
-        local hasRandom, who = randomBlockingPad(padIndex)
-        if hasRandom then
-            bailFromPad(padIndex, who)
+        if teamFullyOnPad(padIndex) then
+            log("Team on Pad " .. padIndex .. ": " .. teamOnPadCount(padIndex) .. "/4")
+            startDungeonFromPad(padIndex)
+            waitWhileTeamHoldsPad(padIndex)
             return
         end
 
-        local teamOn = teamOnPadCount(padIndex)
-        if teamOn >= teamCount() then
-            log("Team on Pad " .. padIndex .. ": " .. teamOn .. "/4")
-            startDungeonFromPad(padIndex)
-            waitWhileTeamHoldsPad(padIndex)
+        local hasRandom, who = randomBlockingPad(padIndex)
+        if hasRandom then
+            bailFromPad(padIndex, who)
             return
         end
 
