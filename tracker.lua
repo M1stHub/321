@@ -115,7 +115,6 @@ local function ImGoated()
             ["Mythical Scroll"] = 0,
             ["Leviathan Heart"] = 0,
             ["Leviathan Scale"] = 0,
-            ["Terror Eyes"] = 0,
             ["Fool's Gold"] = 0
         }
 
@@ -186,7 +185,6 @@ local function ImGoated()
             {name = "Leviathan Heart", value = tostring(tracker["Leviathan Heart"]), inline = true},
             {name = "Leviathan Scale", value = tostring(tracker["Leviathan Scale"]), inline = true},
             {name = "Mythical Scroll", value = tostring(tracker["Mythical Scroll"]), inline = true},
-            {name = "Terror Eyes", value = tostring(tracker["Terror Eyes"]), inline = true},
             {name = "Fool's Gold", value = tostring(tracker["Fool's Gold"]), inline = true},
             {name = "Mythical Fruits", value = "```\n" .. mythicalList .. "\n```", inline = true},
             {name = "Legendary Fruits", value = "```\n" .. legendaryList .. "\n```", inline = true},
@@ -200,10 +198,10 @@ local function ImGoated()
                 Method = "POST",
                 Headers = { ["Content-Type"] = "application/json" },
                 Body = HttpService:JSONEncode({
-                    username = "levi is gay",
+                    username = "bob",
+                    avatar_url = "https://assets-prd.ignimgs.com/2024/01/25/bob-the-builder-button-1706221996136.jpg",
                     embeds = {{
-                        title = "waves",
-                        color = 0x1F51FF,
+                        color = 16777215,
                         fields = fields,
                         timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
                     }}
