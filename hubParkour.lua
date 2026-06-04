@@ -86,7 +86,7 @@ local DEFAULT_CONFIG = {
     dungeon = {
         difficulty = "Normal",
         startWhenTeamReady = true,
-        leaderOnly = true,
+        leaderOnly = false,
         leaderName = nil,
         startDelay = 0.25,
     },
