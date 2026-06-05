@@ -118,7 +118,7 @@ local DataRemote = game.ReplicatedStorage.DungeonShared:WaitForChild("DataRemote
 local Players = game:GetService("Players")
 
 local playerName = Players.LocalPlayer.Name
-local FLAG_FILE = playerName .. "-MistFlag.txt"
+local FLAG_FILE = "MistFlag-Global.txt"
 
 local DUNGEON_MIN_ENERGY = 10
 local DUNGEON_START_ENERGY = 50
@@ -181,12 +181,6 @@ end
 local function switchToLevi()
     setFlag("Leviathan")
     sendSwitchWebhook("→ Leviathan")
-    local allAccounts = (getgenv().EventCheckConfig or {}).allowedAccounts or {}
-    for _, name in ipairs(allAccounts) do
-        if name ~= playerName then
-            pcall(writefile, name .. "-MistFlag.txt", "Leviathan")
-        end
-    end
     startLevi()
 end
 
@@ -194,12 +188,6 @@ local function switchToDungeons(fromLevi)
     if lastFlag ~= "Dungeons" then
         setFlag("Dungeons")
         sendSwitchWebhook("→ Dungeons")
-        local allAccounts = (getgenv().EventCheckConfig or {}).allowedAccounts or {}
-        for _, name in ipairs(allAccounts) do
-            if name ~= playerName then
-                pcall(writefile, name .. "-MistFlag.txt", "Dungeons")
-            end
-        end
     end
     if fromLevi then waitForLeviDone() end
     startDungeons()
@@ -225,7 +213,7 @@ local function update()
         end
 
     elseif flag == "Leviathan" then
-        if lastFlag == "Dungeons" then
+        if lastFlag == "Dungeons" or dungeonStarted then
             print("[MistFlag] Flag switched Dungeons → Leviathan — kicking")
             setFlag("Leviathan")
             game.Players.LocalPlayer:Kick("dungeons done")
