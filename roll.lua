@@ -220,6 +220,7 @@ end)
 
 while task.wait(RollCfg.RollDelay or 5) do
     if getgenv()._rollToken ~= token then break end
+    if GetScrollCount() == 0 then break end
     local success, result = pcall(TryEnchant)
     if success and result then break end
 end
