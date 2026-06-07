@@ -311,9 +311,10 @@ local function buyFightingStyle(styleName)
 end
 
 
+-- Fruit is intentionally not checked so accounts keep whatever fruit they have.
 local function isLoadoutGood()
     local config = getgenv().AutoLoadout
-    local _, _, _, _, currentFightingStyle = getEquippedItems()
+    local currentSword, currentGun, _, currentWear, currentFightingStyle, _, ownedSwords, ownedGuns = getEquippedItems()
     local currentRace = getRace()
 
     local function matchesAny(current, list)
@@ -326,7 +327,14 @@ local function isLoadoutGood()
 
     if not matchesAny(currentRace, config.race) then return false end
     if not matchesAny(currentFightingStyle, config.fightingStyles) then return false end
-    return true
+    if not matchesAny(currentSword, config.sword) then return false end
+    if not matchesAny(currentGun, config.gun) then return false end
+
+    local wears = type(config.wear) == "table" and config.wear or {config.wear}
+    for _, wear in ipairs(wears) do
+        if wear ~= "" and string.find(currentWear, wear, 1, true) then return true end
+    end
+    return false
 end
 
 local function runPostLoad()
@@ -386,10 +394,10 @@ local function applyLoadout()
         end
     end
 
-    local _, _, _, _, currentFightingStyle = getEquippedItems()
+    local currentSword, currentGun, _, currentWear, currentFightingStyle, wearUIDs, ownedSwords, ownedGuns = getEquippedItems()
     local config = getgenv().AutoLoadout
 
-    warn("[AutoBuild] FightingStyle=" .. currentFightingStyle)
+    warn("[AutoBuild] Sword=" .. currentSword .. " | Gun=" .. currentGun .. " | Wear=" .. currentWear .. " | FightingStyle=" .. currentFightingStyle)
 
     warn("[AutoBuild] Checking race...")
     local currentRace = getRace()
@@ -444,6 +452,65 @@ local function applyLoadout()
     end
     if not foundOwned then
         warn("[AutoBuild] No fighting style could be equipped or bought from config.")
+    end
+
+    currentSword, currentGun, _, currentWear, _, wearUIDs, ownedSwords, ownedGuns = getEquippedItems()
+
+    warn("[AutoBuild] Checking swords...")
+    local swords = type(config.sword) == "table" and config.sword or {config.sword}
+    for _, sword in ipairs(swords) do
+        if sword ~= "" then
+            if ownedSwords[sword] then
+                if currentSword == sword then
+                    warn("[AutoBuild] Sword already equipped: " .. sword)
+                else
+                    warn("[AutoBuild] Equipping sword: " .. sword)
+                    ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer("LoadItem", sword)
+                    task.wait(0.5)
+                end
+                break
+            else
+                warn("[AutoBuild] Sword not found in inventory: " .. sword)
+            end
+        end
+    end
+
+    warn("[AutoBuild] Checking guns...")
+    local guns = type(config.gun) == "table" and config.gun or {config.gun}
+    for _, gun in ipairs(guns) do
+        if gun ~= "" then
+            if ownedGuns[gun] then
+                if currentGun == gun then
+                    warn("[AutoBuild] Gun already equipped: " .. gun)
+                else
+                    warn("[AutoBuild] Equipping gun: " .. gun)
+                    ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer("LoadItem", gun)
+                    task.wait(0.5)
+                end
+                break
+            else
+                warn("[AutoBuild] Gun not found in inventory: " .. gun)
+            end
+        end
+    end
+
+    warn("[AutoBuild] Checking wear...")
+    local wears = type(config.wear) == "table" and config.wear or {config.wear}
+    for _, wear in ipairs(wears) do
+        if wear ~= "" then
+            if wearUIDs[wear] then
+                if string.find(currentWear, wear, 1, true) then
+                    warn("[AutoBuild] Wear already equipped: " .. wear)
+                else
+                    warn("[AutoBuild] Equipping wear: " .. wear)
+                    ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer("LoadItem", wearUIDs[wear])
+                    task.wait(0.5)
+                end
+                break
+            else
+                warn("[AutoBuild] Wear not found in inventory: " .. wear)
+            end
+        end
     end
 
     warn("[AutoBuild] Loadout applied!")
