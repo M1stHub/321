@@ -66,7 +66,7 @@ local function SendWebhook(enchants, isGood)
 
     local enchantLines = {}
     for name, data in pairs(enchants) do
-        local level = type(data) == "table" and (data.MaxLevel or data.Level)
+        local level = type(data) == "table" and (data.Level or data.MaxLevel)
         local tag   = (type(data) == "table" and data.Unique) and " [Unique]" or ""
         local line  = level and (name .. " (Lvl " .. tostring(level) .. ")" .. tag) or (name .. tag)
         table.insert(enchantLines, line)
@@ -106,6 +106,14 @@ local function TweenToPosition(position)
     local root = character:FindFirstChild("HumanoidRootPart")
     if not root then return end
 
+    local parts = {}
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            parts[part] = part.CanCollide
+            part.CanCollide = false
+        end
+    end
+
     local distance = (root.Position - position).Magnitude
     local tween = TweenService:Create(
         root,
@@ -114,6 +122,10 @@ local function TweenToPosition(position)
     )
     tween:Play()
     tween.Completed:Wait()
+
+    for part, wasCollide in pairs(parts) do
+        part.CanCollide = wasCollide
+    end
 end
 
 local function FindWeapon()
