@@ -182,6 +182,7 @@ end
 
 local function startLevi()
     if leviStarted or not cfg.executeLevi then return end
+    if game.PlaceId == 73902483975735 then return end
     leviStarted = true
     task.spawn(function()
         local ok, err = pcall(cfg.executeLevi)
@@ -261,8 +262,8 @@ local function update()
         end
 
     elseif flag == "Leviathan" then
-        if lastFlag == "Dungeons" or dungeonStarted then
-            print("[MistFlag] Flag switched Dungeons → Leviathan — kicking")
+        if game.PlaceId == 73902483975735 then
+            print("[MistFlag] Flag is Leviathan, in dungeon hub — kicking to transition")
             setFlag("Leviathan")
             LocalPlayer:Kick("dungeons done")
             return
@@ -309,7 +310,7 @@ else
 
     task.spawn(function()
         while true do
-            task.wait(30)
+            task.wait(180)
             if not isInDungeon() then
                 local ok, err = pcall(update)
                 if not ok then warn("[EventCheck] poll error: " .. tostring(err)) end
