@@ -159,7 +159,7 @@ local DataRemote = game.ReplicatedStorage.DungeonShared:WaitForChild("DataRemote
 local playerName = LocalPlayer.Name
 local FLAG_FILE = "MistFlag-Global.txt"
 
-local DUNGEON_MIN_ENERGY = 10
+local DUNGEON_MIN_ENERGY = 49
 local DUNGEON_START_ENERGY = 50
 
 local lastFlag = nil
