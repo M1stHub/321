@@ -1,12 +1,21 @@
 local cfg = getgenv().EventCheckConfig or {}
 local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
 local requestFunc = request or http_request or (syn and syn.request)
+
+local allowedSet = {}
+local hasAllowedAccounts = type(cfg.allowedAccounts) == "table" and #cfg.allowedAccounts > 0
+if hasAllowedAccounts then
+    for _, name in ipairs(cfg.allowedAccounts) do
+        allowedSet[tostring(name)] = true
+    end
+end
 
 local function sendSwitchWebhook(direction)
     local sw = cfg.switchWebhook
     if not sw or not sw.url or not requestFunc then return end
-    local Players = game:GetService("Players")
-    if Players.LocalPlayer.Name ~= sw.senderAccount then return end
+    if LocalPlayer.Name ~= sw.senderAccount then return end
     pcall(function()
         requestFunc({
             Url = sw.url,
@@ -26,8 +35,40 @@ local function sendSwitchWebhook(direction)
 end
 
 local function isInDungeon()
-    local leaderstats = game:GetService("Players").LocalPlayer:FindFirstChild("leaderstats")
+    local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
     return leaderstats and leaderstats:FindFirstChild("Damage") ~= nil
+end
+
+local function findRandomDungeonPlayer()
+    if not hasAllowedAccounts then return nil end
+    for _, player in ipairs(Players:GetPlayers()) do
+        if not allowedSet[player.Name] then
+            return player
+        end
+    end
+    return nil
+end
+
+local function kickIfRandomInDungeon()
+    if not isInDungeon() then return false end
+    local randomPlayer = findRandomDungeonPlayer()
+    if not randomPlayer then return false end
+    warn("[EventCheck] Random player detected in dungeon: " .. randomPlayer.Name)
+    LocalPlayer:Kick("random detected")
+    return true
+end
+
+local dungeonRandomMonitorStarted = false
+local function startDungeonRandomMonitor()
+    if dungeonRandomMonitorStarted then return end
+    dungeonRandomMonitorStarted = true
+    task.spawn(function()
+        while isInDungeon() do
+            if kickIfRandomInDungeon() then return end
+            task.wait(1)
+        end
+        dungeonRandomMonitorStarted = false
+    end)
 end
 
 getgenv().leviInProgress = false
@@ -115,9 +156,7 @@ end)
 
 local DataRemote = game.ReplicatedStorage.DungeonShared:WaitForChild("DataRemote")
 
-local Players = game:GetService("Players")
-
-local playerName = Players.LocalPlayer.Name
+local playerName = LocalPlayer.Name
 local FLAG_FILE = "MistFlag-Global.txt"
 
 local DUNGEON_MIN_ENERGY = 10
@@ -130,6 +169,10 @@ local leviStarted = false
 local function startDungeons()
     if dungeonStarted or not cfg.executeDungeons then return end
     if game.PlaceId ~= 73902483975735 then return end
+    if kickIfRandomInDungeon() then return end
+    if isInDungeon() then
+        startDungeonRandomMonitor()
+    end
     dungeonStarted = true
     task.spawn(function()
         local ok, err = pcall(cfg.executeDungeons)
@@ -184,6 +227,11 @@ local function switchToLevi()
     startLevi()
 end
 
+local function switchFlagToLevi()
+    setFlag("Leviathan")
+    sendSwitchWebhook("→ Leviathan")
+end
+
 local function switchToDungeons(fromLevi)
     if lastFlag ~= "Dungeons" then
         setFlag("Dungeons")
@@ -208,18 +256,18 @@ local function update()
             end
         else
             print("[MistFlag] Energy too low (" .. energy .. ") — switching to Leviathan")
-            switchToLevi()
-            game.Players.LocalPlayer:Kick("dungeons done")
+            switchFlagToLevi()
+            LocalPlayer:Kick("dungeons done")
         end
 
     elseif flag == "Leviathan" then
         if lastFlag == "Dungeons" or dungeonStarted then
             print("[MistFlag] Flag switched Dungeons → Leviathan — kicking")
             setFlag("Leviathan")
-            game.Players.LocalPlayer:Kick("dungeons done")
+            LocalPlayer:Kick("dungeons done")
             return
         end
-        if energy >= DUNGEON_START_ENERGY then
+        if energy >= DUNGEON_START_ENERGY and not getgenv().leviInProgress then
             print("[MistFlag] Energy refilled (" .. energy .. ") — switching to Dungeons")
             switchToDungeons(true)
         else
@@ -229,7 +277,7 @@ local function update()
 
     else
         print("[MistFlag] No flag found — energy: " .. energy)
-        if energy >= DUNGEON_START_ENERGY then
+        if energy >= DUNGEON_START_ENERGY and not getgenv().leviInProgress then
             switchToDungeons()
             if game.PlaceId ~= 73902483975735 then
                 teleportToHub()
@@ -241,6 +289,7 @@ local function update()
 end
 
 if cfg.leviOnly then
+    if kickIfRandomInDungeon() then return end
     startLevi()
 else
     if isInDungeon() then
