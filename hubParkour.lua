@@ -246,6 +246,7 @@ local dungeon = hubConfig.dungeon
 local runtime = hubConfig.runtime
 runtime.done = false
 runtime.startedDungeon = false
+runtime.lastActivity = tick()
 
 local startSession
 local stopSession
@@ -1614,9 +1615,25 @@ local function evaluatePad(padIndex)
     return "hold"
 end
 
+local function waitForTeamStagedNear(padIndex)
+    while state.running do
+        if not state.coordEnabled then return end
+        if teamNearPadCount(padIndex) >= teamCount() then return end
+        setCoordStatus("Pad " .. padIndex .. " gathering " .. teamNearPadCount(padIndex) .. "/" .. teamCount())
+        task.wait(coordination.waitPoll)
+    end
+end
+
 local function enterPad(padIndex)
     log("Walking onto Pad " .. padIndex .. " (" .. getStatusText(padIndex) .. ")")
     lookAtPoint(getPadTarget(padIndex))
+    waitForTeamStagedNear(padIndex)
+    if not state.running then return end
+    local hasRandom, who = randomBlockingPad(padIndex)
+    if hasRandom then
+        bailFromPad(padIndex, "random before enter: " .. tostring(who))
+        return
+    end
     walkTo(getPadTarget(padIndex), "PAD " .. padIndex, true)
     waitForTeamOnPad(padIndex)
 end
@@ -1660,15 +1677,20 @@ local function coordinatePads(startPad)
             setCoordStatus("Follow P" .. stagedPad .. " -> P" .. target)
             moveToPadStage(target, "FOLLOW")
             stagedPad = target
+            runtime.lastActivity = tick()
+            waitForTeamStagedNear(stagedPad)
         else
             local decision, alternate = evaluatePad(stagedPad)
             if decision == "enter" and waitForCoordEnabled() then
+                runtime.lastActivity = tick()
                 enterPad(stagedPad)
             elseif decision == "switch" then
                 log("Pad " .. stagedPad .. " blocked -> staging Pad " .. alternate)
                 setCoordStatus("Switch P" .. stagedPad .. " -> P" .. alternate)
                 moveToPadStage(alternate, "SWITCH")
                 stagedPad = alternate
+                runtime.lastActivity = tick()
+                waitForTeamStagedNear(stagedPad)
             else
                 setCoordStatus("Pad " .. stagedPad .. " busy, holding")
                 moveToPadStage(stagedPad, "HOLD")
@@ -1751,6 +1773,7 @@ function startSession()
     runtime.done = false
     runtime.startedDungeon = false
     runtime.runActive = true
+    runtime.lastActivity = tick()
     state.oldAutoRotate = nil
     state.noEnergyIgnored = {}
     setCoordEnabled(true)
@@ -1769,5 +1792,33 @@ if runtime.stop then
 end
 task.wait(0.1)
 runtime.stop = cleanup
+
+task.spawn(function()
+    task.wait(30)
+    local lastWatchPos = nil
+    while true do
+        task.wait(15)
+        if runtime.runActive and not runtime.startedDungeon then
+            local char = localPlayer.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            if root then
+                local pos = root.Position
+                if lastWatchPos and (pos - lastWatchPos).Magnitude > 5 then
+                    runtime.lastActivity = tick()
+                end
+                lastWatchPos = pos
+                if tick() - (runtime.lastActivity or tick()) > 90 then
+                    warnHub("[watchdog] no activity for 90s, restarting session...")
+                    stopSession()
+                    task.wait(2)
+                    startSession()
+                end
+            end
+        else
+            lastWatchPos = nil
+            runtime.lastActivity = tick()
+        end
+    end
+end)
 
 startSession()
