@@ -54,14 +54,18 @@ end
 local webhookUrl     = getgenv().notiWebhook or ""
 local isGateDetected = false
 
+if getgenv().everyonePing == nil then
+	getgenv().everyonePing = false
+end
+
 task.spawn(function()
 	while true do
-		local doorLeft = findInMap("LeviathanGate", "DOORLEFT")
+		local leviathanGate = findInMap("LeviathanGate")
 
-		if doorLeft and not isGateDetected then
-			SendWebhook("a", "Frozen Dimension Found", 255, webhookUrl)
+		if leviathanGate and not isGateDetected then
+			SendWebhook(getgenv().everyonePing and "@everyone" or "a", "Frozen Dimension Found", 255, webhookUrl)
 			isGateDetected = true
-		elseif not doorLeft then
+		elseif not leviathanGate then
 			isGateDetected = false
 		end
 
