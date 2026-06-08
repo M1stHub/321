@@ -249,6 +249,9 @@ runtime.startedDungeon = false
 
 local startSession
 local stopSession
+local missingTeamOnPad
+local randomBlockingPad
+local teamOnPadCount
 
 local teamSet = {}
 for _, name in ipairs(hubConfig.accounts) do
@@ -1312,6 +1315,19 @@ local function startDungeonFromPad(padIndex)
         return
     end
 
+    local hasRandom, who = randomBlockingPad(padIndex)
+    if hasRandom then
+        warnHub("Refusing to start dungeon from Pad " .. tostring(padIndex) .. "; random detected: " .. tostring(who))
+        return
+    end
+
+    local onPad = teamOnPadCount(padIndex)
+    if onPad < teamCount() then
+        local missing = missingTeamOnPad(padIndex)
+        warnHub("Refusing to start dungeon from Pad " .. tostring(padIndex) .. "; team on pad " .. tostring(onPad) .. "/" .. tostring(teamCount()) .. ", missing: " .. table.concat(missing, ", "))
+        return
+    end
+
     local remote = getDungeonSettingsRemote(padIndex)
     if not remote then
         warnHub("Dungeon settings remote missing for Pad " .. tostring(padIndex))
@@ -1344,7 +1360,7 @@ local function teamNearPadCount(padIndex)
     return count
 end
 
-local function teamOnPadCount(padIndex)
+function teamOnPadCount(padIndex)
     local box = state.propBoxes[padIndex]
     local players = box and state.propInside[box.name] or {}
     local count = 0
@@ -1354,6 +1370,28 @@ local function teamOnPadCount(padIndex)
         end
     end
     return count
+end
+
+function missingTeamOnPad(padIndex)
+    local box = state.propBoxes[padIndex]
+    local players = box and state.propInside[box.name] or {}
+    local present = {}
+    local missing = {}
+
+    for _, player in pairs(players) do
+        if isTeamPlayer(player) then
+            present[player.Name] = true
+        end
+    end
+
+    for _, name in ipairs(hubConfig.accounts) do
+        name = tostring(name)
+        if not present[name] then
+            table.insert(missing, name)
+        end
+    end
+
+    return missing
 end
 
 local function ignoreNoEnergy(player, statusCount, padIndex, location)
@@ -1395,7 +1433,7 @@ local function randomNearPad(padIndex, statusCount)
     return false, nil
 end
 
-local function randomBlockingPad(padIndex)
+function randomBlockingPad(padIndex)
     local statusCount = getStatusCount(padIndex)
     local tracked, trackedName = randomInTrackedPad(padIndex, statusCount)
     if tracked then
@@ -1415,18 +1453,7 @@ local function randomBlockingPad(padIndex)
 end
 
 local function teamFullyOnPad(padIndex)
-    if teamOnPadCount(padIndex) >= teamCount() then
-        return true
-    end
-    local statusCount = getStatusCount(padIndex)
-    if statusCount and statusCount >= teamCount() and teamOnPadCount(padIndex) >= 1 then
-        local tracked = randomInTrackedPad(padIndex, statusCount)
-        local nearby = randomNearPad(padIndex, statusCount)
-        if not tracked and not nearby then
-            return true
-        end
-    end
-    return false
+    return teamOnPadCount(padIndex) >= teamCount() and not randomBlockingPad(padIndex)
 end
 
 local function waitForCoordEnabled()
@@ -1545,7 +1572,7 @@ local function waitForTeamOnPad(padIndex)
         end
 
         if teamFullyOnPad(padIndex) then
-            log("Team on Pad " .. padIndex .. ": " .. teamOnPadCount(padIndex) .. "/4")
+            log("Team on Pad " .. padIndex .. ": " .. teamOnPadCount(padIndex) .. "/" .. teamCount())
             startDungeonFromPad(padIndex)
             waitWhileTeamHoldsPad(padIndex)
             return
