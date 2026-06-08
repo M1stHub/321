@@ -19,6 +19,7 @@ local RollCfg = getgenv().RollCfg or {
     WeaponName      = nil,
     WantedBlessings = {},
     WantedUniques   = {},
+    RequiredLevels  = {},
     RollDelay       = 5,
     TweenSpeed      = 275,
     Webhook         = nil,
@@ -44,6 +45,104 @@ end
 
 local WantedBlessings = ToLookup(RollCfg.WantedBlessings)
 local WantedUniques   = ToLookup(RollCfg.WantedUniques)
+local RequiredLevels  = RollCfg.RequiredLevels or {}
+
+local function GetEnchantLevel(data)
+    if type(data) == "table" then
+        return tonumber(data.Level or data.MaxLevel or data.Value)
+    end
+    return tonumber(data)
+end
+
+local function IsUniqueEnchant(name, data)
+    if WantedUniques[name] then return true end
+    if type(data) ~= "table" then return false end
+
+    return data.Unique ~= nil and data.Unique ~= false
+end
+
+local function IsBlessingEnchant(name, data)
+    if WantedBlessings[name] then return true end
+    if type(data) ~= "table" then return false end
+
+    if (data.Blessing ~= nil and data.Blessing ~= false) or (data.IsBlessing ~= nil and data.IsBlessing ~= false) then return true end
+
+    local enchantType = tostring(data.Type or data.Category or data.Rarity or ""):lower()
+    return enchantType == "blessing" or enchantType:find("blessing", 1, true) ~= nil
+end
+
+local function GetRollStatus(enchants)
+    local hasBlessing, hasUnique = false, false
+    local hasWantedBlessing, hasWantedUnique = false, false
+
+    for name, data in pairs(enchants) do
+        if IsBlessingEnchant(name, data) then
+            hasBlessing = true
+            if WantedBlessings[name] then
+                hasWantedBlessing = true
+            end
+        end
+
+        if IsUniqueEnchant(name, data) then
+            hasUnique = true
+            if WantedUniques[name] then
+                hasWantedUnique = true
+            end
+        end
+    end
+
+    if hasWantedBlessing and hasWantedUnique then
+        return "Correct Blessing and Unique", true
+    end
+
+    if hasBlessing and hasUnique then
+        if hasWantedBlessing then
+            return "Correct Blessing + Wrong Unique", false
+        end
+        if hasWantedUnique then
+            return "Wrong Blessing + Correct Unique", false
+        end
+        return "Blessing + Unique But Wrong One", false
+    end
+
+    if hasBlessing then
+        return hasWantedBlessing and "Solo Blessing (Correct)" or "Solo Blessing", false
+    end
+
+    if hasUnique then
+        return hasWantedUnique and "Solo Unique (Correct)" or "Solo Unique", false
+    end
+
+    return "No Blessing/Unique", false
+end
+
+local function HasWanted(tbl, enchants)
+    for enchantName in pairs(tbl) do
+        if enchants[enchantName] ~= nil then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function HasRequiredLevels(enchants)
+    for enchantName, requiredLevel in pairs(RequiredLevels) do
+        local currentLevel = GetEnchantLevel(enchants[enchantName])
+
+        if not currentLevel or currentLevel < requiredLevel then
+            return false
+        end
+    end
+
+    return true
+end
+
+local function ShouldKeep(enchants)
+    return HasWanted(WantedBlessings, enchants)
+        and HasWanted(WantedUniques, enchants)
+        and HasRequiredLevels(enchants)
+end
 
 local function GetScrollCount()
     local count = 0
@@ -61,13 +160,13 @@ local function GetScrollCount()
     return count
 end
 
-local function SendWebhook(enchants, isGood)
+local function SendWebhook(enchants, rollTitle, isGood)
     if not RollCfg.Webhook or not httpRequest then return end
 
     local enchantLines = {}
     for name, data in pairs(enchants) do
-        local level = type(data) == "table" and (data.Level or data.MaxLevel)
-        local tag   = (type(data) == "table" and data.Unique) and " [Unique]" or ""
+        local level = GetEnchantLevel(data)
+        local tag   = IsUniqueEnchant(name, data) and " [Unique]" or ""
         local line  = level and (name .. " (Lvl " .. tostring(level) .. ")" .. tag) or (name .. tag)
         table.insert(enchantLines, line)
     end
@@ -78,12 +177,12 @@ local function SendWebhook(enchants, isGood)
         content = isGood and "@everyone" or nil,
         embeds  = {
             {
-                title  = isGood and "LETS FUCKING GOOO" or "Roll Result",
+                title  = "Roll Result (" .. rollTitle .. ")",
                 color  = isGood and 0x57F287 or 0x5865F2,
                 fields = {
                     { name = "Scroll",       value = scrolls[Selected],                            inline = true  },
                     { name = "Scrolls Left", value = tostring(scrollLeft),                         inline = true  },
-                    { name = "Weapon",       value = WeaponType .. " · " .. (WeaponName or "Any"), inline = true  },
+                    { name = "Weapon",       value = WeaponType .. " - " .. (WeaponName or "Any"), inline = true  },
                     { name = "Enchants",     value = "```\n" .. enchantText .. "\n```",             inline = false },
                 },
             }
@@ -162,24 +261,17 @@ local function FindEnchants(result)
     end
     if typeof(modifiers) ~= "table" then return found end
     for _, modifierData in pairs(modifiers) do
-        if typeof(modifierData) == "table" and modifierData.Name then
-            found[modifierData.Name] = modifierData
+        if typeof(modifierData) == "table" then
+            if modifierData.Name then
+                found[modifierData.Name] = modifierData
+            else
+                for enchantName, enchantValue in pairs(modifierData) do
+                    found[enchantName] = enchantValue
+                end
+            end
         end
     end
     return found
-end
-
-local function HasWanted(tbl, enchants)
-    for enchantName in pairs(tbl) do
-        if enchants[enchantName] ~= nil then return true end
-    end
-    return false
-end
-
-local function ShouldKeep(enchants)
-    if not HasWanted(WantedBlessings, enchants) then return false end
-    if not HasWanted(WantedUniques, enchants) then return false end
-    return true
 end
 
 local function TryEnchant()
@@ -193,9 +285,13 @@ local function TryEnchant()
     if typeof(result) ~= "table" then return end
 
     local enchants = FindEnchants(result)
-    local isGood   = ShouldKeep(enchants)
+    local rollTitle = GetRollStatus(enchants)
+    local isGood = ShouldKeep(enchants)
+    if rollTitle == "Correct Blessing and Unique" and not isGood then
+        rollTitle = "Correct Blessing and Unique (Missing Levels)"
+    end
 
-    SendWebhook(enchants, isGood)
+    SendWebhook(enchants, rollTitle, isGood)
 
     if isGood then return true end
     return false
