@@ -14,15 +14,15 @@ local scrolls = {
 }
 
 local RollCfg = getgenv().RollCfg or {
-    Selected        = "Myth",
-    WeaponType      = "Sword",
-    WeaponName      = nil,
-    WantedBlessings = {},
-    WantedUniques   = {},
-    RequiredLevels  = {},
-    RollDelay       = 5,
-    TweenSpeed      = 275,
-    Webhook         = nil,
+    Selected        = "Myth",     
+    WeaponType      = "Sword",     
+    WeaponName      = nil,          
+    WantedBlessings = {},           
+    WantedUniques   = {},           
+    RequiredLevels  = {},           
+    RollDelay       = 5,            
+    TweenSpeed      = 275,          
+    Webhook         = nil,          
 }
 
 local Selected   = RollCfg.Selected
@@ -57,16 +57,13 @@ end
 local function IsUniqueEnchant(name, data)
     if WantedUniques[name] then return true end
     if type(data) ~= "table" then return false end
-
     return data.Unique ~= nil and data.Unique ~= false
 end
 
 local function IsBlessingEnchant(name, data)
     if WantedBlessings[name] then return true end
     if type(data) ~= "table" then return false end
-
     if (data.Blessing ~= nil and data.Blessing ~= false) or (data.IsBlessing ~= nil and data.IsBlessing ~= false) then return true end
-
     local enchantType = tostring(data.Type or data.Category or data.Rarity or ""):lower()
     return enchantType == "blessing" or enchantType:find("blessing", 1, true) ~= nil
 end
@@ -78,63 +75,39 @@ local function GetRollStatus(enchants)
     for name, data in pairs(enchants) do
         if IsBlessingEnchant(name, data) then
             hasBlessing = true
-            if WantedBlessings[name] then
-                hasWantedBlessing = true
-            end
+            if WantedBlessings[name] then hasWantedBlessing = true end
         end
-
         if IsUniqueEnchant(name, data) then
             hasUnique = true
-            if WantedUniques[name] then
-                hasWantedUnique = true
-            end
+            if WantedUniques[name] then hasWantedUnique = true end
         end
     end
 
     if hasWantedBlessing and hasWantedUnique then
         return "Correct Blessing and Unique", true
     end
-
     if hasBlessing and hasUnique then
-        if hasWantedBlessing then
-            return "Correct Blessing + Wrong Unique", false
-        end
-        if hasWantedUnique then
-            return "Wrong Blessing + Correct Unique", false
-        end
+        if hasWantedBlessing then return "Correct Blessing + Wrong Unique", false end
+        if hasWantedUnique   then return "Wrong Blessing + Correct Unique", false end
         return "Blessing + Unique But Wrong One", false
     end
-
-    if hasBlessing then
-        return hasWantedBlessing and "Solo Blessing (Correct)" or "Solo Blessing", false
-    end
-
-    if hasUnique then
-        return hasWantedUnique and "Solo Unique (Correct)" or "Solo Unique", false
-    end
-
+    if hasBlessing then return hasWantedBlessing and "Solo Blessing (Correct)" or "Solo Blessing", false end
+    if hasUnique   then return hasWantedUnique   and "Solo Unique (Correct)"   or "Solo Unique",   false end
     return "No Blessing/Unique", false
 end
 
 local function HasWanted(tbl, enchants)
     for enchantName in pairs(tbl) do
-        if enchants[enchantName] ~= nil then
-            return true
-        end
+        if enchants[enchantName] ~= nil then return true end
     end
-
     return false
 end
 
 local function HasRequiredLevels(enchants)
     for enchantName, requiredLevel in pairs(RequiredLevels) do
         local currentLevel = GetEnchantLevel(enchants[enchantName])
-
-        if not currentLevel or currentLevel < requiredLevel then
-            return false
-        end
+        if not currentLevel or currentLevel < requiredLevel then return false end
     end
-
     return true
 end
 
@@ -302,25 +275,33 @@ getgenv()._rollToken = token
 
 local originalWeapon = nil
 pcall(function()
-    local inv = CommF:InvokeServer("getInventory")
-    if type(inv) ~= "table" then return end
-    for _, item in ipairs(inv) do
-        pcall(function()
-            if item.Equipped and item.Name ~= WeaponName
-            and (item.Type == "Sword" or item.Type == "Gun") then
+    local char = Players.LocalPlayer.Character
+    if not char then return end
+    for _, item in ipairs(char:GetChildren()) do
+        if item:IsA("Tool") and item.Name ~= WeaponName then
+            local wt = (item:GetAttribute("WeaponType") or ""):lower()
+            if wt == "sword" or wt == "gun" then
                 originalWeapon = item.Name
+                break
             end
-        end)
+        end
     end
 end)
 
 while task.wait(RollCfg.RollDelay or 5) do
     if getgenv()._rollToken ~= token then break end
-    if GetScrollCount() == 0 then break end
+    if GetScrollCount() == 0 then break end           
     local success, result = pcall(TryEnchant)
-    if success and result then break end
+    if success and result then break end              
 end
 
 if originalWeapon and originalWeapon ~= WeaponName then
     pcall(function() CommF:InvokeServer("LoadItem", originalWeapon) end)
+    task.wait(1)
+    pcall(function()
+        local char = Players.LocalPlayer.Character
+        local hum  = char and char:FindFirstChildOfClass("Humanoid")
+        local tool = Players.LocalPlayer.Backpack:FindFirstChild(originalWeapon)
+        if hum and tool then hum:EquipTool(tool) end
+    end)
 end
