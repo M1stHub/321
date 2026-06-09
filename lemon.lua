@@ -8,7 +8,14 @@ local Players=game:GetService("Players")
 local UIS=game:GetService("UserInputService")
 local lp=Players.LocalPlayer
 local Window=Library:CreateWindow({Title="Lemon Hub",Footer="v2.0",Center=true,AutoShow=true,ShowCustomCursor=true,NotifySide="Right"})
-local Tabs={Main=Window:AddTab("Main","zap"),Stands=Window:AddTab("Stands","store"),Tuning=Window:AddTab("Tuning","sliders"),["UI Settings"]=Window:AddTab("UI Settings","settings")}
+local Tabs={
+    Main=Window:AddTab("Main","zap"),
+    Stands=Window:AddTab("Stands","store"),
+    Tuning=Window:AddTab("Tuning","sliders"),
+    ["UI Settings"]=Window:AddTab("UI Settings","settings"),
+}
+local Options=Library.Options
+local Toggles=Library.Toggles
 local autoBuy,lemonFarm,cashFarm,autoStand=false,false,false,false
 local STAND_LIST={
     {display="Lemon Stand",    key="LemonStand",    pname="Lemon Stand"},
@@ -31,14 +38,10 @@ local function findTycoon()
         end
     end
 end
-local function getBg(obj)
-    if not obj then return nil end
-    local ok,c=pcall(function()return obj.BackgroundColor3 end)
-    return ok and c or nil
-end
 local function isBuyable(btn)
-    local c=getBg(btn)
-    if not c then return true end
+    if not btn then return true end
+    local ok,c=pcall(function()return btn.BackgroundColor3 end)
+    if not ok or not c then return true end
     local r,g,b=math.floor(c.R*255+.5),math.floor(c.G*255+.5),math.floor(c.B*255+.5)
     return not(math.abs(r-125)<30 and math.abs(g-125)<30 and math.abs(b-125)<30)
 end
@@ -50,14 +53,14 @@ local function getManageBtn(key)
 end
 local function fireUpgrade(folder,amount)
     local n=folder.Name
-    local ok=pcall(function()
+    local fired=pcall(function()
         local r=folder[n][n]:FindFirstChild("Upgrade")
         if r and r:IsA("RemoteFunction") then r:InvokeServer(amount)
         elseif r and r:IsA("RemoteEvent") then r:FireServer(amount) end
     end)
-    if not ok then
+    if not fired then
         for _,d in ipairs(folder:GetDescendants()) do
-            if d.Name=="Upgrade" and (d:IsA("RemoteFunction") or d:IsA("RemoteEvent")) then
+            if d.Name=="Upgrade" and(d:IsA("RemoteFunction") or d:IsA("RemoteEvent")) then
                 pcall(function()
                     if d:IsA("RemoteFunction") then d:InvokeServer(amount) else d:FireServer(amount) end
                 end)
@@ -66,9 +69,9 @@ local function fireUpgrade(folder,amount)
         end
     end
 end
-local function wakeIncome(tycoon,key)
+local function wakeIncome(ty,key)
     pcall(function()
-        local r=tycoon.Remotes:FindFirstChild("WakeIncomeStream")
+        local r=ty.Remotes:FindFirstChild("WakeIncomeStream")
         if r then r:InvokeServer(key) end
     end)
 end
@@ -87,18 +90,7 @@ local function getLemonTrees()
     if rt then t[#t+1]=rt end
     return t
 end
-local function stopAll()
-    autoBuy,lemonFarm,cashFarm,autoStand=false,false,false,false
-    Toggles.AutoBuy:SetValue(false)
-    Toggles.LemonFarm:SetValue(false)
-    Toggles.CashFarm:SetValue(false)
-    Toggles.AutoStand:SetValue(false)
-    Library:Notify({Title="Lemon Hub",Description="All stopped!",Time=2})
-end
-UIS.InputBegan:Connect(function(i,g)
-    if g then return end
-    if i.KeyCode==Enum.KeyCode.Zero then stopAll() end
-end)
+-- loops
 task.spawn(function()
     while true do
         if autoBuy then
@@ -134,11 +126,11 @@ task.spawn(function()
                     end
                     if picked then
                         local btn=getManageBtn(s.key)
-                        if not btn or isBuyable(btn) then
+                        if isBuyable(btn) then
                             local f=p:FindFirstChild(s.pname)
                             if f then
                                 fireUpgrade(f,amt)
-                                if Toggles.WakeIncome and Toggles.WakeIncome.Value then
+                                if Options.WakeIncome and Options.WakeIncome.Value then
                                     wakeIncome(ty,s.key)
                                 end
                                 task.wait(dly)
@@ -169,14 +161,14 @@ task.spawn(function()
                         task.wait((Options.LemonTPSettle and Options.LemonTPSettle.Value or 50)/1000)
                     end
                     local maxY=Options.LemonMaxY and Options.LemonMaxY.Value or 14
-                    local fDelay=(Options.LemonFruitDelay and Options.LemonFruitDelay.Value or 50)/1000
+                    local fd=(Options.LemonFruitDelay and Options.LemonFruitDelay.Value or 50)/1000
                     for _,fruit in ipairs(tree:GetChildren()) do
                         if not lemonFarm then break end
                         if fruit.Name~="Fruit" then continue end
                         local cp=fruit:FindFirstChild("ClickPart")
                         if cp and cp:IsA("BasePart") and cp.Position.Y<=maxY then
                             pcall(function()fireallclickdetectors(cp)end)
-                            task.wait(fDelay)
+                            task.wait(fd)
                         end
                     end
                 end
@@ -205,37 +197,39 @@ task.spawn(function()
         else task.wait(0.1) end
     end
 end)
+-- UI: build all elements first, wire callbacks after
 local LM=Tabs.Main:AddLeftGroupbox("Automation","zap")
 local RM=Tabs.Main:AddRightGroupbox("Controls","gamepad-2")
 LM:AddToggle("AutoBuy",{Text="Auto Buy",Default=false,Tooltip="Fires Upgrade remotes on all Purchases folders"})
-Toggles.AutoBuy:OnChanged(function(v)autoBuy=v end)
-LM:AddLabel("AutoBuyKey",{Text="Auto Buy Bind"}):AddKeyPicker("AutoBuyKey",{Default="One",Mode="Toggle",SyncToggleState=true,Text="Auto Buy"})
-Options.AutoBuyKey:OnClick(function()Toggles.AutoBuy:SetValue(not Toggles.AutoBuy.Value)end)
+LM:AddLabel("AutoBuyBind",{Text="Auto Buy Bind"}):AddKeyPicker("AutoBuyKey",{Default="One",Mode="Toggle",SyncToggleState=true,Text="Auto Buy",NoUI=false})
 LM:AddDivider()
-LM:AddToggle("LemonFarm",{Text="Lemon Farm",Default=false,Tooltip="TPs to trees and fires all ClickDetectors"})
-Toggles.LemonFarm:OnChanged(function(v)lemonFarm=v end)
-LM:AddLabel("LemonFarmKey",{Text="Lemon Farm Bind"}):AddKeyPicker("LemonFarmKey",{Default="Two",Mode="Toggle",SyncToggleState=true,Text="Lemon Farm"})
-Options.LemonFarmKey:OnClick(function()Toggles.LemonFarm:SetValue(not Toggles.LemonFarm.Value)end)
+LM:AddToggle("LemonFarm",{Text="Lemon Farm",Default=false,Tooltip="TPs to trees, fires all ClickDetectors on fruits"})
+LM:AddLabel("LemonFarmBind",{Text="Lemon Farm Bind"}):AddKeyPicker("LemonFarmKey",{Default="Two",Mode="Toggle",SyncToggleState=true,Text="Lemon Farm",NoUI=false})
 LM:AddDivider()
 LM:AddToggle("CashFarm",{Text="Cash Farm",Default=false,Tooltip="Moves CashDrops to your head"})
-Toggles.CashFarm:OnChanged(function(v)cashFarm=v end)
-LM:AddLabel("CashFarmKey",{Text="Cash Farm Bind"}):AddKeyPicker("CashFarmKey",{Default="Three",Mode="Toggle",SyncToggleState=true,Text="Cash Farm"})
-Options.CashFarmKey:OnClick(function()Toggles.CashFarm:SetValue(not Toggles.CashFarm.Value)end)
+LM:AddLabel("CashFarmBind",{Text="Cash Farm Bind"}):AddKeyPicker("CashFarmKey",{Default="Three",Mode="Toggle",SyncToggleState=true,Text="Cash Farm",NoUI=false})
 LM:AddDivider()
-LM:AddToggle("AutoStand",{Text="Auto Stand",Default=false,Tooltip="Checks ManageMenu color then fires Upgrade remote"})
-Toggles.AutoStand:OnChanged(function(v)autoStand=v end)
-LM:AddLabel("AutoStandKey",{Text="Auto Stand Bind"}):AddKeyPicker("AutoStandKey",{Default="Four",Mode="Toggle",SyncToggleState=true,Text="Auto Stand"})
-Options.AutoStandKey:OnClick(function()Toggles.AutoStand:SetValue(not Toggles.AutoStand.Value)end)
-RM:AddButton({Text="Stop All [0]",Risky=true,Func=stopAll,Tooltip="Stops everything"})
+LM:AddToggle("AutoStand",{Text="Auto Stand",Default=false,Tooltip="Checks ManageMenu color, fires Upgrade remote if buyable"})
+LM:AddLabel("AutoStandBind",{Text="Auto Stand Bind"}):AddKeyPicker("AutoStandKey",{Default="Four",Mode="Toggle",SyncToggleState=true,Text="Auto Stand",NoUI=false})
+RM:AddButton({Text="Stop All [0]",Risky=true,Tooltip="Stops everything",Func=function()
+    autoBuy,lemonFarm,cashFarm,autoStand=false,false,false,false
+    Toggles.AutoBuy:SetValue(false)
+    Toggles.LemonFarm:SetValue(false)
+    Toggles.CashFarm:SetValue(false)
+    Toggles.AutoStand:SetValue(false)
+    Library:Notify({Title="Lemon Hub",Description="All stopped!",Time=2})
+end})
+-- stands tab
 local LS=Tabs.Stands:AddLeftGroupbox("Stand Selection","list")
 local RS=Tabs.Stands:AddRightGroupbox("Upgrade Settings","settings-2")
 local sNames={}
 for _,s in ipairs(STAND_LIST) do sNames[#sNames+1]=s.display end
 LS:AddDropdown("StandSelection",{Text="Stands to Upgrade",Values=sNames,Default=sNames,Multi=true})
-LS:AddLabel("Open Manage menu once so GUI color checks work.",true)
-RS:AddSlider("StandUpgradeAmount",{Text="Upgrade Amount",Default=25,Min=1,Max=100,Rounding=0})
+LS:AddLabel("Open the Manage menu once so color checks work.",true)
+RS:AddSlider("StandUpgradeAmount",{Text="Upgrade Amount",Default=25,Min=1,Max=100,Rounding=0,Tooltip="Levels per invoke"})
 RS:AddSlider("StandDelay",{Text="Delay Between Stands",Default=200,Min=50,Max=2000,Rounding=0,Suffix=" ms"})
 RS:AddToggle("WakeIncome",{Text="Fire WakeIncomeStream",Default=true})
+-- tuning tab
 local LT=Tabs.Tuning:AddLeftGroupbox("Lemon Farm","leaf")
 local RT=Tabs.Tuning:AddRightGroupbox("Other","wrench")
 LT:AddSlider("LemonTPSettle",{Text="TP Settle",Default=50,Min=0,Max=500,Rounding=0,Suffix=" ms"})
@@ -243,6 +237,7 @@ LT:AddSlider("LemonFruitDelay",{Text="Fruit Delay",Default=50,Min=0,Max=500,Roun
 LT:AddSlider("LemonMaxY",{Text="Max Fruit Y",Default=14,Min=1,Max=100,Rounding=0,Suffix=" studs"})
 RT:AddSlider("AutoBuyDelay",{Text="Auto Buy Delay",Default=150,Min=50,Max=2000,Rounding=0,Suffix=" ms"})
 RT:AddSlider("CashFarmDelay",{Text="Cash Farm Delay",Default=300,Min=50,Max=2000,Rounding=0,Suffix=" ms"})
+-- settings tab
 local MG=Tabs["UI Settings"]:AddLeftGroupbox("Menu","wrench")
 MG:AddToggle("KeybindMenuOpen",{Default=Library.KeybindFrame and Library.KeybindFrame.Visible or false,Text="Open Keybind Menu",Callback=function(v)if Library.KeybindFrame then Library.KeybindFrame.Visible=v end end})
 MG:AddToggle("ShowCustomCursor",{Text="Custom Cursor",Default=true,Callback=function(v)Library.ShowCustomCursor=v end})
@@ -250,6 +245,26 @@ MG:AddDivider()
 MG:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind",{Default="F4",NoUI=true,Text="Toggle GUI"})
 MG:AddButton("Unload",function()Library:Unload()end)
 Library.ToggleKeybind=Options.MenuKeybind
+-- wire OnChanged AFTER all elements exist
+Toggles.AutoBuy:OnChanged(function(v)autoBuy=v end)
+Toggles.LemonFarm:OnChanged(function(v)lemonFarm=v end)
+Toggles.CashFarm:OnChanged(function(v)cashFarm=v end)
+Toggles.AutoStand:OnChanged(function(v)autoStand=v end)
+Options.AutoBuyKey:OnClick(function()Toggles.AutoBuy:SetValue(not Toggles.AutoBuy.Value)end)
+Options.LemonFarmKey:OnClick(function()Toggles.LemonFarm:SetValue(not Toggles.LemonFarm.Value)end)
+Options.CashFarmKey:OnClick(function()Toggles.CashFarm:SetValue(not Toggles.CashFarm.Value)end)
+Options.AutoStandKey:OnClick(function()Toggles.AutoStand:SetValue(not Toggles.AutoStand.Value)end)
+UIS.InputBegan:Connect(function(i,g)
+    if g then return end
+    if i.KeyCode==Enum.KeyCode.Zero then
+        autoBuy,lemonFarm,cashFarm,autoStand=false,false,false,false
+        Toggles.AutoBuy:SetValue(false)
+        Toggles.LemonFarm:SetValue(false)
+        Toggles.CashFarm:SetValue(false)
+        Toggles.AutoStand:SetValue(false)
+        Library:Notify({Title="Lemon Hub",Description="All stopped!",Time=2})
+    end
+end)
 ThemeManager:SetLibrary(Library)
 SaveManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
