@@ -1,5 +1,20 @@
 repeat task.wait() until game:IsLoaded()
 task.wait(15)
+for _,v in ipairs(workspace:GetDescendants()) do
+	if v:IsA("BasePart") then
+		v.LocalTransparencyModifier = 1
+	elseif v:IsA("Decal") or v:IsA("Texture") then
+		v.Transparency = 1
+	end
+end
+
+workspace.DescendantAdded:Connect(function(v)
+	if v:IsA("BasePart") then
+		v.LocalTransparencyModifier = 1
+	elseif v:IsA("Decal") or v:IsA("Texture") then
+		v.Transparency = 1
+	end
+end)
 local function ensureOff(secondBtn)
     if not secondBtn then return end
     local c = secondBtn.BackgroundColor3
