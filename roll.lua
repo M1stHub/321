@@ -163,13 +163,25 @@ end
 local function SendWebhook(enchants, rollTitle, isGood)
     if not RollCfg.Webhook or not httpRequest then return end
 
-    local enchantLines = {}
+    local blessingLines, uniqueLines, otherLines = {}, {}, {}
     for name, data in pairs(enchants) do
         local level = GetEnchantLevel(data)
-        local tag   = IsUniqueEnchant(name, data) and " [Unique]" or ""
-        local line  = level and (name .. " (Lvl " .. tostring(level) .. ")" .. tag) or (name .. tag)
-        table.insert(enchantLines, line)
+        local isBlessing = IsBlessingEnchant(name, data)
+        local isUnique   = IsUniqueEnchant(name, data)
+        local tag  = isUnique and " [Unique]" or (isBlessing and " [Blessing]" or "")
+        local line = level and (name .. " (Lvl " .. tostring(level) .. ")" .. tag) or (name .. tag)
+        if isBlessing then
+            table.insert(blessingLines, line)
+        elseif isUnique then
+            table.insert(uniqueLines, line)
+        else
+            table.insert(otherLines, line)
+        end
     end
+    local enchantLines = {}
+    for _, l in ipairs(blessingLines) do table.insert(enchantLines, l) end
+    for _, l in ipairs(uniqueLines)   do table.insert(enchantLines, l) end
+    for _, l in ipairs(otherLines)    do table.insert(enchantLines, l) end
     local enchantText = #enchantLines > 0 and table.concat(enchantLines, "\n") or "None"
     local scrollLeft  = GetScrollCount()
 
