@@ -82,6 +82,7 @@ local DEFAULT_CONFIG = {
         padClearStableTime = 2.5,
         padBusySwitchTime = 5,
         lookTurnTime = 0.35,
+        noEnergyConfirmTime = 0.75,
     },
     dungeon = {
         difficulty = "Normal",
@@ -219,6 +220,7 @@ local state = {
     coordStatus = nil,
     coordEnabled = true,
     noEnergyIgnored = {},
+    noEnergySeen = {},
 }
 
 local function isArray(tableValue)
@@ -909,6 +911,13 @@ local function createPropBox(target)
     return { index = target.index, name = target.name, pad = target.pad, part = boxPart, size = size, cframe = cframe }
 end
 
+local function forgetNoEnergy(userId)
+    -- A no-energy verdict only holds while the player is parked on the pad.
+    -- Once they step off, re-evaluate from scratch in case they return with energy.
+    state.noEnergyIgnored[userId] = nil
+    state.noEnergySeen[userId] = nil
+end
+
 local function updateBoxPresence(box, player, seen)
     local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
     local inside = root and rootInsideBox(root, box)
@@ -920,6 +929,7 @@ local function updateBoxPresence(box, player, seen)
         logProp("ENTER " .. box.name .. " -> " .. player.Name)
     elseif not inside and playersInside[player.UserId] then
         playersInside[player.UserId] = nil
+        forgetNoEnergy(player.UserId)
         logProp("EXIT " .. box.name .. " -> " .. player.Name)
     end
 end
@@ -932,6 +942,7 @@ local function scanBox(box)
     for userId, player in pairs(state.propInside[box.name]) do
         if not seen[userId] then
             state.propInside[box.name][userId] = nil
+            forgetNoEnergy(userId)
             logProp("EXIT " .. box.name .. " -> " .. player.Name)
         end
     end
@@ -1395,38 +1406,44 @@ function missingTeamOnPad(padIndex)
     return missing
 end
 
-local function ignoreNoEnergy(player, statusCount, padIndex, location)
-    if state.noEnergyIgnored[player.UserId] then
-        return true
-    end
-    if statusCount == 0 then
-        state.noEnergyIgnored[player.UserId] = true
-        log("Ignoring no-energy player " .. location .. " Pad " .. padIndex .. ": " .. player.Name)
-        return true
-    end
-    return false
-end
-
-local function randomInTrackedPad(padIndex, statusCount)
+local function refreshNoEnergy(padIndex, statusCount)
+    -- Energy is only knowable for players physically ON the pad: the status
+    -- counts only energy holders, so a body in the box that doesn't raise it has
+    -- no energy. We can only attribute that cleanly when status is 0 (then every
+    -- occupant lacks energy). Confirm over a short window so a one-frame lag in
+    -- the status text can't flag someone the instant they step on.
     local box = state.propBoxes[padIndex]
     local players = box and state.propInside[box.name] or {}
+    local now = tick()
     for _, player in pairs(players) do
-        if not isTeamPlayer(player) and not ignoreNoEnergy(player, statusCount, padIndex, "on") then
-            return true, player.Name
+        if not isTeamPlayer(player) then
+            if statusCount == 0 then
+                local firstSeen = state.noEnergySeen[player.UserId]
+                if not firstSeen then
+                    state.noEnergySeen[player.UserId] = now
+                elseif not state.noEnergyIgnored[player.UserId]
+                    and now - firstSeen >= coordination.noEnergyConfirmTime then
+                    state.noEnergyIgnored[player.UserId] = true
+                    log("Confirmed no-energy on Pad " .. padIndex .. ": " .. player.Name)
+                end
+            else
+                -- Energy registered on this pad: any earlier 0-status assumption
+                -- about these occupants is stale, so re-evaluate them.
+                forgetNoEnergy(player.UserId)
+            end
         end
     end
-    return false, nil
 end
 
-local function randomNearPad(padIndex, statusCount)
+local function randomNearPad(padIndex)
     local target = getPadTarget(padIndex)
     for _, player in ipairs(Players:GetPlayers()) do
-        if not isTeamPlayer(player) then
+        if not isTeamPlayer(player) and not state.noEnergyIgnored[player.UserId] then
             local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
             local near = root
                 and flatDistance(root.Position, target) <= coordination.onPadRadius
                 and math.abs(root.Position.Y - target.Y) <= movement.padNearYRange
-            if near and not ignoreNoEnergy(player, statusCount, padIndex, "near") then
+            if near then
                 return true, player.Name
             end
         end
@@ -1436,19 +1453,19 @@ end
 
 function randomBlockingPad(padIndex)
     local statusCount = getStatusCount(padIndex)
-    local tracked, trackedName = randomInTrackedPad(padIndex, statusCount)
-    if tracked then
-        return true, trackedName
+    local teamOn = teamOnPadCount(padIndex)
+    refreshNoEnergy(padIndex, statusCount)
+
+    -- Stateless on-pad check: status counts only energy holders, team members are
+    -- assumed to hold energy, so any surplus is a random with energy on the pad.
+    -- No-energy bodies never raise the status, so they're excluded automatically.
+    if statusCount and statusCount > teamOn then
+        return true, "energy random on pad (" .. tostring(statusCount) .. "/4, team " .. tostring(teamOn) .. ")"
     end
 
-    local nearby, nearbyName = randomNearPad(padIndex, statusCount)
+    local nearby, nearbyName = randomNearPad(padIndex)
     if nearby then
         return true, nearbyName
-    end
-
-    local teamOn = teamOnPadCount(padIndex)
-    if statusCount and teamOn >= teamCount() and statusCount > teamOn then
-        return true, "status " .. tostring(statusCount) .. "/4"
     end
     return false, nil
 end
@@ -1663,6 +1680,7 @@ local function coordinatePads(startPad)
     end
 
     local stagedPad = startPad
+    local holding = false
     while state.running do
         if not waitForCoordEnabled() then
             break
@@ -1677,23 +1695,31 @@ local function coordinatePads(startPad)
             setCoordStatus("Follow P" .. stagedPad .. " -> P" .. target)
             moveToPadStage(target, "FOLLOW")
             stagedPad = target
+            holding = false
             runtime.lastActivity = tick()
             waitForTeamStagedNear(stagedPad)
         else
             local decision, alternate = evaluatePad(stagedPad)
             if decision == "enter" and waitForCoordEnabled() then
                 runtime.lastActivity = tick()
+                holding = false
                 enterPad(stagedPad)
             elseif decision == "switch" then
                 log("Pad " .. stagedPad .. " blocked -> staging Pad " .. alternate)
                 setCoordStatus("Switch P" .. stagedPad .. " -> P" .. alternate)
                 moveToPadStage(alternate, "SWITCH")
                 stagedPad = alternate
+                holding = false
                 runtime.lastActivity = tick()
                 waitForTeamStagedNear(stagedPad)
             else
+                -- Pad busy: walk to a hold point exactly once, then wait in place
+                -- instead of re-shuffling to a new random point every loop.
                 setCoordStatus("Pad " .. stagedPad .. " busy, holding")
-                moveToPadStage(stagedPad, "HOLD")
+                if not holding then
+                    moveToPadStage(stagedPad, "HOLD")
+                    holding = true
+                end
             end
         end
     end
@@ -1776,6 +1802,7 @@ function startSession()
     runtime.lastActivity = tick()
     state.oldAutoRotate = nil
     state.noEnergyIgnored = {}
+    state.noEnergySeen = {}
     setCoordEnabled(true)
     setCoordStatus("starting")
     task.spawn(function()
