@@ -318,9 +318,10 @@ pcall(function()
     if type(inv) ~= "table" then return end
     for _, item in ipairs(inv) do
         if type(item) == "table" and item.Equipped == true
-        and item.Name ~= WeaponName
-        and (item.Type == "Sword" or item.Type == "Gun") then
+        and item.Type == WeaponType
+        and item.Name ~= WeaponName then
             originalWeapon = item.Name
+            break
         end
     end
 end)
@@ -332,6 +333,6 @@ while task.wait(RollCfg.RollDelay or 5) do
     if success and result then break end
 end
 
-if originalWeapon and originalWeapon ~= WeaponName then
+if originalWeapon then
     pcall(function() CommF:InvokeServer("LoadItem", originalWeapon) end)
 end
