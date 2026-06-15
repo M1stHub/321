@@ -9,6 +9,21 @@ local TIKI_HI = Vector3.new(math.max(TIKI_P1.X, TIKI_P2.X), math.max(TIKI_P1.Y, 
 
 local RESET_LIMIT = 3
 
+local function forceReset(character, humanoid)
+    if humanoid then
+        pcall(function()
+            humanoid.Health = 0
+            humanoid:ChangeState(Enum.HumanoidStateType.Dead)
+        end)
+    end
+
+    if character then
+        pcall(function()
+            character:BreakJoints()
+        end)
+    end
+end
+
 local function isWhitelisted()
     local whitelist = getgenv().resetWhitelist
     if not whitelist then return false end
@@ -32,6 +47,38 @@ local function isInTiki(pos)
     return pos.X >= TIKI_LO.X and pos.X <= TIKI_HI.X
        and pos.Y >= TIKI_LO.Y and pos.Y <= TIKI_HI.Y
        and pos.Z >= TIKI_LO.Z and pos.Z <= TIKI_HI.Z
+end
+
+local function modelHasPartInTiki(model)
+    for _, obj in ipairs(model:GetDescendants()) do
+        if obj:IsA("BasePart") and isInTiki(obj.Position) then
+            return true
+        end
+    end
+    return false
+end
+
+local function waitForRespawn(timeout)
+    local oldCharacter = LocalPlayer.Character
+    local done = false
+    local connection
+
+    connection = LocalPlayer.CharacterAdded:Connect(function(newCharacter)
+        if newCharacter ~= oldCharacter then
+            done = true
+        end
+    end)
+
+    local started = os.clock()
+    while not done and os.clock() - started < timeout do
+        task.wait(0.1)
+    end
+
+    if connection then
+        connection:Disconnect()
+    end
+
+    return done
 end
 
 local function isInBoatCastle(pos)
@@ -69,7 +116,8 @@ local function runGuard()
 
         while boats:FindFirstChild("Beast Hunter") do
             local hunter = boats:FindFirstChild("Beast Hunter")
-            local hunterInTiki = hunter and isInTiki(hunter:GetPivot().Position)
+            local hunterPos = hunter and hunter:GetPivot().Position
+            local hunterInTiki = hunter and (isInTiki(hunterPos) or modelHasPartInTiki(hunter))
 
             if hunterInTiki and not isWhitelisted() and resetCount < RESET_LIMIT then
                 local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -78,10 +126,10 @@ local function runGuard()
                 if hrp and not isInTiki(hrp.Position) then
                     local hum = char:FindFirstChildWhichIsA("Humanoid")
                     if hum and hum.Health > 0 then
-                        hum.Health = 0
+                        forceReset(char, hum)
                         resetCount += 1
                     end
-                    LocalPlayer.CharacterAdded:Wait()
+                    waitForRespawn(15)
                     task.wait(1)
                     tryBoatCastleTeleport()
                 end
