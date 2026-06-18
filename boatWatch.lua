@@ -24,6 +24,12 @@ local function forceReset(character, humanoid)
     end
 end
 
+local function forceKick(reason)
+    pcall(function()
+        LocalPlayer:Kick(reason)
+    end)
+end
+
 local function isWhitelisted()
     local whitelist = getgenv().resetWhitelist
     if not whitelist then return false end
@@ -58,26 +64,27 @@ local function modelHasPartInTiki(model)
     return false
 end
 
+local function isLeviathanGateOpen()
+    local map = workspace:FindFirstChild("Map")
+    return map ~= nil and map:FindFirstChild("LeviathanGate") ~= nil
+end
+
 local function waitForRespawn(timeout)
     local oldCharacter = LocalPlayer.Character
     local done = false
     local connection
-
     connection = LocalPlayer.CharacterAdded:Connect(function(newCharacter)
         if newCharacter ~= oldCharacter then
             done = true
         end
     end)
-
     local started = os.clock()
     while not done and os.clock() - started < timeout do
         task.wait(0.1)
     end
-
     if connection then
         connection:Disconnect()
     end
-
     return done
 end
 
@@ -93,12 +100,10 @@ local function tryBoatCastleTeleport()
     local hrp = char:WaitForChild("HumanoidRootPart", 10)
     if not hrp then return end
     if not isInBoatCastle(hrp.Position) then return end
-
     local rf = game:GetService("ReplicatedStorage")
         :WaitForChild("Modules")
         :WaitForChild("Net")
         :WaitForChild("RF/BoatCastleTeleporters")
-
     pcall(function()
         local boat = CollectionService:GetTagged("BoatCastleTeleporter")[1]
         if not boat then return end
@@ -108,33 +113,31 @@ end
 
 local function runGuard()
     local boats = workspace:WaitForChild("Boats")
-
     while true do
         while not boats:FindFirstChild("Beast Hunter") do task.wait(1) end
-
         local resetCount = 0
-
         while boats:FindFirstChild("Beast Hunter") do
             local hunter = boats:FindFirstChild("Beast Hunter")
             local hunterPos = hunter and hunter:GetPivot().Position
             local hunterInTiki = hunter and (isInTiki(hunterPos) or modelHasPartInTiki(hunter))
-
-            if hunterInTiki and not isWhitelisted() and resetCount < RESET_LIMIT then
-                local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-                local hrp  = char:FindFirstChild("HumanoidRootPart")
-
-                if hrp and not isInTiki(hrp.Position) then
-                    local hum = char:FindFirstChildWhichIsA("Humanoid")
-                    if hum and hum.Health > 0 then
-                        forceReset(char, hum)
-                        resetCount += 1
+            if hunterInTiki and not isWhitelisted() then
+                if isLeviathanGateOpen() then
+                    forceKick("bugged levi")
+                elseif resetCount < RESET_LIMIT then
+                    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+                    local hrp  = char:FindFirstChild("HumanoidRootPart")
+                    if hrp and not isInTiki(hrp.Position) then
+                        local hum = char:FindFirstChildWhichIsA("Humanoid")
+                        if hum and hum.Health > 0 then
+                            forceReset(char, hum)
+                            resetCount += 1
+                        end
+                        waitForRespawn(15)
+                        task.wait(1)
+                        tryBoatCastleTeleport()
                     end
-                    waitForRespawn(15)
-                    task.wait(1)
-                    tryBoatCastleTeleport()
                 end
             end
-
             task.wait(1)
         end
     end
