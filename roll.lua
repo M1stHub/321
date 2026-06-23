@@ -1,8 +1,7 @@
 local Players      = game:GetService("Players")
 local RepStorage   = game:GetService("ReplicatedStorage")
-local HttpService  = game:GetService("HttpService")
 local TweenService = game:GetService("TweenService")
-local RunService   = game:GetService("RunService")
+local HttpService  = game:GetService("HttpService")
 
 local EnchantRemote = RepStorage:WaitForChild("Modules"):WaitForChild("Net"):WaitForChild("RF/EnchantInvoke")
 local CommF         = RepStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
@@ -35,93 +34,6 @@ local RollPosition = Vector3.new(
     484.1939697265625,
     945.1946411132812
 )
-
-local GOOD_ROLL_FILE = "good_roll_found.txt"
-
-local function HasGoodRoll()
-    local success, exists = pcall(function()
-        return isfile(GOOD_ROLL_FILE)
-    end)
-    return success and exists
-end
-
-if HasGoodRoll() then
-    print("Good roll already found! Exiting.")
-    return
-end
-
-local TELEPORT_DISTANCE = 250
-local SPEED = 300
-
-local function getParts(character)
-    local parts = {}
-    for _, inst in ipairs(character:GetDescendants()) do
-        if inst:IsA("BasePart") then
-            table.insert(parts, inst)
-        end
-    end
-    return parts
-end
-
-local function tweenTo(targetCFrame)
-    local character = Players.LocalPlayer.Character
-    if not character then
-        return
-    end
-
-    local hrp = character:FindFirstChild("HumanoidRootPart")
-    if not hrp then
-        return
-    end
-
-    local startCFrame = hrp.CFrame
-    local distance = (targetCFrame.Position - startCFrame.Position).Magnitude
-
-    if distance <= TELEPORT_DISTANCE then
-        hrp.CFrame = targetCFrame
-        return
-    end
-
-    local parts = getParts(character)
-    local originalCollide = {}
-    for _, part in ipairs(parts) do
-        originalCollide[part] = part.CanCollide
-        part.CanCollide = false
-    end
-
-    local duration = distance / SPEED
-
-    local cframeValue = Instance.new("CFrameValue")
-    cframeValue.Value = startCFrame
-
-    local tween = TweenService:Create(
-        cframeValue,
-        TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
-        { Value = targetCFrame }
-    )
-
-    local connection = RunService.Heartbeat:Connect(function()
-        if hrp.Parent then
-            hrp.CFrame = cframeValue.Value
-        end
-    end)
-
-    tween:Play()
-    tween.Completed:Wait()
-
-    connection:Disconnect()
-    cframeValue:Destroy()
-
-    if hrp.Parent then
-        hrp.CFrame = targetCFrame
-    end
-
-    for part, wasCollide in pairs(originalCollide) do
-        if part.Parent then
-            part.CanCollide = wasCollide
-        end
-    end
-end
 
 local httpRequest = (syn and syn.request) or http_request or request
 
@@ -299,6 +211,34 @@ local function SendWebhook(enchants, rollTitle, isGood)
     end)
 end
 
+local function TweenToPosition(position)
+    local character = Players.LocalPlayer.Character
+    if not character then return end
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    local parts = {}
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            parts[part] = part.CanCollide
+            part.CanCollide = false
+        end
+    end
+
+    local distance = (root.Position - position).Magnitude
+    local tween = TweenService:Create(
+        root,
+        TweenInfo.new(distance / (RollCfg.TweenSpeed or 150), Enum.EasingStyle.Linear),
+        { CFrame = CFrame.new(position) }
+    )
+    tween:Play()
+    tween.Completed:Wait()
+
+    for part, wasCollide in pairs(parts) do
+        part.CanCollide = wasCollide
+    end
+end
+
 local function FindWeapon()
     local function matchItem(item)
         if WeaponName then return item.Name == WeaponName end
@@ -347,7 +287,7 @@ local function FindEnchants(result)
 end
 
 local function TryEnchant()
-    tweenTo(RollPosition)
+    TweenToPosition(RollPosition)
     EquipWeapon()
 
     local weapon = FindWeapon()
@@ -390,10 +330,7 @@ while task.wait(RollCfg.RollDelay or 5) do
     if getgenv()._rollToken ~= token then break end
     if GetScrollCount() == 0 then break end
     local success, result = pcall(TryEnchant)
-    if success and result then
-        pcall(function() writefile(GOOD_ROLL_FILE, "Good roll found!") end)
-        break
-    end
+    if success and result then break end
 end
 
 if originalWeapon then
