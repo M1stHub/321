@@ -2,44 +2,20 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
 local localPlayer = Players.LocalPlayer
-local RESET_AFTER = 300
-local MOVE_THRESHOLD = 5
-
 local afkTimer = 0
-local lastCheckTime = os.clock()
+local lastCheckTime = tick()
 local lastPosition = nil
-
-local function horizontalDistance(a, b)
-	local dx = a.X - b.X
-	local dz = a.Z - b.Z
-	return math.sqrt(dx * dx + dz * dz)
-end
-
-local function forceReset(character, humanoid)
-	if humanoid then
-		pcall(function()
-			humanoid.Health = 0
-			humanoid:ChangeState(Enum.HumanoidStateType.Dead)
-		end)
-	end
-
-	if character then
-		pcall(function()
-			character:BreakJoints()
-		end)
-	end
-end
 
 localPlayer.CharacterAdded:Connect(function(character)
 	afkTimer = 0
 	lastPosition = nil
-	lastCheckTime = os.clock()
+	lastCheckTime = tick()
 	character:WaitForChild("HumanoidRootPart")
 	lastPosition = character.HumanoidRootPart.Position
 end)
 
 RunService.Heartbeat:Connect(function()
-	local now = os.clock()
+	local now = tick()
 	local delta = now - lastCheckTime
 	lastCheckTime = now
 
@@ -55,13 +31,13 @@ RunService.Heartbeat:Connect(function()
 		return
 	end
 
-	if horizontalDistance(root.Position, lastPosition) >= MOVE_THRESHOLD then
+	if (root.Position * Vector3.new(1, 0, 1) - lastPosition * Vector3.new(1, 0, 1)).Magnitude >= 5 then
 		afkTimer = 0
 		lastPosition = root.Position
 	else
 		afkTimer += delta
-		if afkTimer >= RESET_AFTER then
-			forceReset(character, humanoid)
+		if afkTimer >= 300 then
+			humanoid.Health = 0
 			afkTimer = 0
 			lastPosition = nil
 		end
