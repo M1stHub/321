@@ -73,7 +73,7 @@ if not leviathanGate then
 end
 
 local leftGate = waitFor(function()
-	return findDescendantLike(leviathanGate, "leftgate")
+	return findDescendantLike(leviathanGate, "doorleft")
 end, FIND_TIMEOUT)
 if not leftGate then
 	warn("[gateFix] Could not find anything resembling 'left gate' inside " .. GATE_NAME .. " after " .. FIND_TIMEOUT .. "s.")
