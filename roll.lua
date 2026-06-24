@@ -344,7 +344,7 @@ local function TryEnchant()
     return isGood, rollTitle, enchantText
 end
 
-local DoneFileName = "RollDone_" .. tostring(Selected) .. "_" .. tostring(WeaponName or WeaponType) .. ".txt"
+local DoneFileName = "RollDone_" .. tostring(Players.LocalPlayer.Name) .. "_" .. tostring(Selected) .. "_" .. tostring(WeaponName or WeaponType) .. ".txt"
 
 local function ReadDoneFile()
     if not readfile then return nil end
