@@ -1,7 +1,10 @@
 local Players      = game:GetService("Players")
 local RepStorage   = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+local RunService   = game:GetService("RunService")
 local HttpService  = game:GetService("HttpService")
+
+local TELEPORT_DISTANCE = 250
 
 local EnchantRemote = RepStorage:WaitForChild("Modules"):WaitForChild("Net"):WaitForChild("RF/EnchantInvoke")
 local CommF         = RepStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
@@ -160,9 +163,7 @@ local function GetScrollCount()
     return count
 end
 
-local function SendWebhook(enchants, rollTitle, isGood)
-    if not RollCfg.Webhook or not httpRequest then return end
-
+local function BuildEnchantText(enchants)
     local blessingLines, uniqueLines, otherLines = {}, {}, {}
     for name, data in pairs(enchants) do
         local level = GetEnchantLevel(data)
@@ -182,8 +183,13 @@ local function SendWebhook(enchants, rollTitle, isGood)
     for _, l in ipairs(blessingLines) do table.insert(enchantLines, l) end
     for _, l in ipairs(uniqueLines)   do table.insert(enchantLines, l) end
     for _, l in ipairs(otherLines)    do table.insert(enchantLines, l) end
-    local enchantText = #enchantLines > 0 and table.concat(enchantLines, "\n") or "None"
-    local scrollLeft  = GetScrollCount()
+    return #enchantLines > 0 and table.concat(enchantLines, "\n") or "None"
+end
+
+local function SendWebhook(enchantText, rollTitle, isGood)
+    if not RollCfg.Webhook or not httpRequest then return end
+
+    local scrollLeft = GetScrollCount()
 
     local payload = {
         content = isGood and "@everyone" or nil,
@@ -211,11 +217,20 @@ local function SendWebhook(enchants, rollTitle, isGood)
     end)
 end
 
-local function TweenToPosition(position)
+local function TweenToPosition(targetCFrame)
     local character = Players.LocalPlayer.Character
     if not character then return end
-    local root = character:FindFirstChild("HumanoidRootPart")
-    if not root then return end
+
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local startCFrame = hrp.CFrame
+    local distance = (targetCFrame.Position - startCFrame.Position).Magnitude
+
+    if distance <= TELEPORT_DISTANCE then
+        hrp.CFrame = targetCFrame
+        return
+    end
 
     local parts = {}
     for _, part in ipairs(character:GetDescendants()) do
@@ -225,17 +240,37 @@ local function TweenToPosition(position)
         end
     end
 
-    local distance = (root.Position - position).Magnitude
+    local duration = distance / (RollCfg.TweenSpeed or 150)
+
+    local cframeValue = Instance.new("CFrameValue")
+    cframeValue.Value = startCFrame
+
     local tween = TweenService:Create(
-        root,
-        TweenInfo.new(distance / (RollCfg.TweenSpeed or 150), Enum.EasingStyle.Linear),
-        { CFrame = CFrame.new(position) }
+        cframeValue,
+        TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
+        { Value = targetCFrame }
     )
+
+    local connection = RunService.Heartbeat:Connect(function()
+        if hrp.Parent then
+            hrp.CFrame = cframeValue.Value
+        end
+    end)
+
     tween:Play()
     tween.Completed:Wait()
 
+    connection:Disconnect()
+    cframeValue:Destroy()
+
+    if hrp.Parent then
+        hrp.CFrame = targetCFrame
+    end
+
     for part, wasCollide in pairs(parts) do
-        part.CanCollide = wasCollide
+        if part.Parent then
+            part.CanCollide = wasCollide
+        end
     end
 end
 
@@ -287,7 +322,7 @@ local function FindEnchants(result)
 end
 
 local function TryEnchant()
-    TweenToPosition(RollPosition)
+    TweenToPosition(CFrame.new(RollPosition))
     EquipWeapon()
 
     local weapon = FindWeapon()
@@ -303,10 +338,27 @@ local function TryEnchant()
         rollTitle = "Correct Blessing and Unique (Missing Levels)"
     end
 
-    SendWebhook(enchants, rollTitle, isGood)
+    local enchantText = BuildEnchantText(enchants)
+    SendWebhook(enchantText, rollTitle, isGood)
 
-    if isGood then return true end
-    return false
+    return isGood, rollTitle, enchantText
+end
+
+local DoneFileName = "RollDone_" .. tostring(Selected) .. "_" .. tostring(WeaponName or WeaponType) .. ".txt"
+
+local function ReadDoneFile()
+    if not readfile then return nil end
+    local ok, content = pcall(readfile, DoneFileName)
+    if ok and content and content ~= "" then
+        return content
+    end
+    return nil
+end
+
+local existingDone = ReadDoneFile()
+if existingDone then
+    print("[roll] Already found a good enchant for this weapon/scroll (" .. DoneFileName .. "):\n" .. existingDone)
+    return
 end
 
 local token = {}
@@ -329,8 +381,15 @@ end)
 while task.wait(RollCfg.RollDelay or 5) do
     if getgenv()._rollToken ~= token then break end
     if GetScrollCount() == 0 then break end
-    local success, result = pcall(TryEnchant)
-    if success and result then break end
+    local success, isGood, rollTitle, enchantText = pcall(TryEnchant)
+    if success and isGood then
+        if writefile then
+            local doneText = os.date("%Y-%m-%d %H:%M:%S") .. " | " .. WeaponType .. " - " .. (WeaponName or "Any")
+                .. " | " .. rollTitle .. "\n" .. enchantText
+            pcall(function() writefile(DoneFileName, doneText) end)
+        end
+        break
+    end
 end
 
 if originalWeapon then
